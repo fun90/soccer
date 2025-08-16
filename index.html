@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML体育数据解析器</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cheerio/1.0.0-rc.12/cheerio.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏈 HTML体育数据解析器</h1>
+            <p>支持联赛信息、比赛数据、技术统计的智能提取</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="function-tabs">
+                <button class="tab-btn active" onclick="switchTab('leagues')">联赛信息提取</button>
+                <button class="tab-btn" onclick="switchTab('matches')">比赛数据提取</button>
+                <button class="tab-btn" onclick="switchTab('stats')">技术统计提取</button>
+            </div>
+            
+            <!-- 联赛信息提取 -->
+            <div id="leagues" class="tab-content active">
+                <div class="input-section">
+                    <div class="input-group">
+                        <label for="league-html">粘贴HTML内容:</label>
+                        <textarea id="league-html" class="large-textarea" placeholder="请粘贴包含联赛信息的HTML代码..."></textarea>
+                        <button class="minimize-btn" onclick="toggleTextarea('league')" id="league-minimize-btn" style="display: none;">折叠</button>
+                        <div id="league-char-counter" class="char-counter">0 字符</div>
+                    </div>
+                    
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="parseLeagues()">🔍 提取联赛信息</button>
+                        <button class="btn btn-secondary" onclick="clearLeagueInput()">🗑️ 清空</button>
+                        <button class="btn btn-secondary" onclick="copyMarkdown('leagues')">📋 复制结果</button>
+                    </div>
+                </div>
+                
+                <div class="output-section">
+                    <label>提取结果 (Markdown格式):</label>
+                    <div id="league-output" class="output-area">等待提取...</div>
+                </div>
+            </div>
+            
+            <!-- 比赛数据提取 -->
+            <div id="matches" class="tab-content">
+                <div class="input-section">
+                    <div class="input-group">
+                        <label for="league-filter">联赛名称筛选 (每行一个联赛名称，留空则提取所有):</label>
+                        <textarea id="league-filter" placeholder="例如：\n英超\n西甲\n德甲" style="min-height: 80px;"></textarea>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="match-html">粘贴HTML内容:</label>
+                        <textarea id="match-html" class="large-textarea" placeholder="请粘贴包含比赛信息的HTML代码..."></textarea>
+                        <button class="minimize-btn" onclick="toggleTextarea('match')" id="match-minimize-btn" style="display: none;">折叠</button>
+                        <div id="match-char-counter" class="char-counter">0 字符</div>
+                    </div>
+                    
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="parseMatches()">🔍 提取比赛数据</button>
+                        <button class="btn btn-secondary" onclick="clearMatchInput()">🗑️ 清空</button>
+                        <button class="btn btn-secondary" onclick="copyMarkdown('matches')">📋 复制结果</button>
+                    </div>
+                </div>
+                
+                <div class="output-section">
+                    <label>提取结果 (Markdown格式):</label>
+                    <div id="match-output" class="output-area">等待提取...</div>
+                </div>
+            </div>
+            
+            <!-- 技术统计提取 -->
+            <div id="stats" class="tab-content">
+                <div class="input-section">
+                    <div class="input-group">
+                        <label for="stats-html">粘贴完整比赛页面HTML内容:</label>
+                        <textarea id="stats-html" class="large-textarea" placeholder="请粘贴完整的比赛页面HTML代码（包含技术统计、详细事件、比赛信息等）..."></textarea>
+                        <button class="minimize-btn" onclick="toggleTextarea('stats')" id="stats-minimize-btn" style="display: none;">折叠</button>
+                        <div id="stats-char-counter" class="char-counter">0 字符</div>
+                    </div>
+                    
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="parseFullMatchData()">🔍 提取完整比赛数据</button>
+                        <button class="btn btn-secondary" onclick="clearStatsInput()">🗑️ 清空</button>
+                        <button class="btn btn-secondary" onclick="copyMarkdown('combined')">📋 复制结果</button>
+                    </div>
+                </div>
+                
+                <div class="output-section">
+                    <label>比赛数据结果 (技术统计 + 详细事件):</label>
+                    <div id="combined-output" class="output-area">等待提取...</div>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
