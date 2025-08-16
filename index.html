@@ -12,6 +12,10 @@
         <div class="header">
             <h1>🏈 HTML体育数据解析器</h1>
             <p>支持联赛信息、比赛数据、技术统计的智能提取</p>
+            <div class="usage-hint">
+                <span class="hint-icon">✨</span>
+                <span>极简操作：粘贴HTML内容即可自动提取并复制结果，无需手动点击</span>
+            </div>
         </div>
         
         <div class="main-content">
@@ -25,16 +29,14 @@
             <div id="leagues" class="tab-content active">
                 <div class="input-section">
                     <div class="input-group">
-                        <label for="league-html">粘贴HTML内容:</label>
-                        <textarea id="league-html" class="large-textarea" placeholder="请粘贴包含联赛信息的HTML代码..."></textarea>
+                        <label for="league-html">粘贴HTML内容: <span class="shortcut-hint">💡 粘贴后自动提取并复制结果</span></label>
+                        <textarea id="league-html" class="large-textarea" placeholder="直接粘贴(Ctrl+V)包含联赛信息的HTML代码，将自动提取并复制结果..."></textarea>
                         <button class="minimize-btn" onclick="toggleTextarea('league')" id="league-minimize-btn" style="display: none;">折叠</button>
                         <div id="league-char-counter" class="char-counter">0 字符</div>
                     </div>
                     
                     <div class="btn-group">
-                        <button class="btn btn-primary" onclick="parseLeagues()">🔍 提取联赛信息</button>
-                        <button class="btn btn-secondary" onclick="clearLeagueInput()">🗑️ 清空</button>
-                        <button class="btn btn-secondary" onclick="copyMarkdown('leagues')">📋 复制结果</button>
+                        <button class="btn btn-clear" onclick="clearLeagueInput()">🗑️ 清空内容</button>
                     </div>
                 </div>
                 
@@ -53,16 +55,14 @@
                     </div>
                     
                     <div class="input-group">
-                        <label for="match-html">粘贴HTML内容:</label>
-                        <textarea id="match-html" class="large-textarea" placeholder="请粘贴包含比赛信息的HTML代码..."></textarea>
+                        <label for="match-html">粘贴HTML内容: <span class="shortcut-hint">💡 粘贴后自动提取并复制结果</span></label>
+                        <textarea id="match-html" class="large-textarea" placeholder="直接粘贴(Ctrl+V)包含比赛信息的HTML代码，将自动提取并复制结果..."></textarea>
                         <button class="minimize-btn" onclick="toggleTextarea('match')" id="match-minimize-btn" style="display: none;">折叠</button>
                         <div id="match-char-counter" class="char-counter">0 字符</div>
                     </div>
                     
                     <div class="btn-group">
-                        <button class="btn btn-primary" onclick="parseMatches()">🔍 提取比赛数据</button>
-                        <button class="btn btn-secondary" onclick="clearMatchInput()">🗑️ 清空</button>
-                        <button class="btn btn-secondary" onclick="copyMarkdown('matches')">📋 复制结果</button>
+                        <button class="btn btn-clear" onclick="clearMatchInput()">🗑️ 清空内容</button>
                     </div>
                 </div>
                 
@@ -76,16 +76,14 @@
             <div id="stats" class="tab-content">
                 <div class="input-section">
                     <div class="input-group">
-                        <label for="stats-html">粘贴完整比赛页面HTML内容:</label>
-                        <textarea id="stats-html" class="large-textarea" placeholder="请粘贴完整的比赛页面HTML代码（包含技术统计、详细事件、比赛信息等）..."></textarea>
+                        <label for="stats-html">粘贴完整比赛页面HTML内容: <span class="shortcut-hint">💡 粘贴后自动提取并复制结果</span></label>
+                        <textarea id="stats-html" class="large-textarea" placeholder="直接粘贴(Ctrl+V)完整的比赛页面HTML代码，将自动提取并复制结果..."></textarea>
                         <button class="minimize-btn" onclick="toggleTextarea('stats')" id="stats-minimize-btn" style="display: none;">折叠</button>
                         <div id="stats-char-counter" class="char-counter">0 字符</div>
                     </div>
                     
                     <div class="btn-group">
-                        <button class="btn btn-primary" onclick="parseFullMatchData()">🔍 提取完整比赛数据</button>
-                        <button class="btn btn-secondary" onclick="clearStatsInput()">🗑️ 清空</button>
-                        <button class="btn btn-secondary" onclick="copyMarkdown('combined')">📋 复制结果</button>
+                        <button class="btn btn-clear" onclick="clearStatsInput()">🗑️ 清空内容</button>
                     </div>
                 </div>
                 

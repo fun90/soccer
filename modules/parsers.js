@@ -88,6 +88,9 @@ function parseLeagues() {
         setGlobalData('currentLeagueData', markdown);
         outputDiv.innerHTML = `<div class="success">成功提取 ${leagueSpans.length} 个联赛信息</div><pre>${markdown}</pre>`;
         
+        // 自动复制结果到剪贴板
+        autoCopyToClipboard(markdown, '联赛信息');
+        
     } catch (error) {
         outputDiv.innerHTML = `<div class="error">解析失败: ${error.message}</div>`;
     }
@@ -175,6 +178,9 @@ function parseMatches() {
                     `成功筛选出 ${filteredCount} 场比赛数据 (总共 ${matchRows.length} 场)` : 
                     `成功提取 ${filteredCount} 场比赛数据`;
                 outputDiv.innerHTML = `<div class="success">${totalMessage}</div><pre>${markdown}</pre>`;
+                
+                // 自动复制结果到剪贴板
+                autoCopyToClipboard(markdown, '比赛数据');
             }
             
             // 分批处理，每批50条
@@ -232,6 +238,9 @@ function parseFullMatchData() {
                 const separator = hasStats && hasEvents ? ' + ' : '';
                 
                 outputDiv.innerHTML = `<div class="success">成功提取 ${statsCount}${separator}${eventsCount}</div><pre>${combinedMarkdown}</pre>`;
+                
+                // 自动复制结果到剪贴板
+                autoCopyToClipboard(combinedMarkdown, '比赛数据');
             } else {
                 outputDiv.innerHTML = '<div class="error">未找到有效数据，请检查HTML格式。确保包含技术统计(.lists)或详细事件(.lists)数据。</div>';
             }
@@ -640,6 +649,13 @@ function extractMatchInfo(doc) {
     
     return matchInfo;
 }
+
+// 将解析函数暴露到全局，确保跨模块访问
+window.parseLeagues = parseLeagues;
+window.parseMatches = parseMatches;
+window.parseFullMatchData = parseFullMatchData;
+window.parseStatsFromFullHtml = parseStatsFromFullHtml;
+window.parseEventsFromFullHtml = parseEventsFromFullHtml;
 
 // 导出解析器函数（用于模块化）
 if (typeof module !== 'undefined' && module.exports) {

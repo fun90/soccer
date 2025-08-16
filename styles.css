@@ -42,6 +42,50 @@ body {
     font-size: 1.1rem;
 }
 
+/* 快捷键提示样式 */
+.shortcut-hint {
+    color: #28a745;
+    font-size: 0.85em;
+    font-weight: normal;
+    background: rgba(40, 167, 69, 0.1);
+    padding: 2px 8px;
+    border-radius: 12px;
+    border: 1px solid rgba(40, 167, 69, 0.2);
+    margin-left: 8px;
+    display: inline-block;
+}
+
+/* 使用提示样式 */
+.usage-hint {
+    margin-top: 15px;
+    padding: 12px 20px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 0.95rem;
+    animation: pulse 2s infinite;
+}
+
+.hint-icon {
+    font-size: 1.1em;
+    animation: bounce 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-3px); }
+    60% { transform: translateY(-2px); }
+}
+
 /* 主要内容区域 */
 .main-content {
     padding: 30px;
@@ -297,6 +341,20 @@ textarea {
 
 .btn-secondary:hover {
     background: #e9ecef;
+}
+
+.btn-clear {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    color: #dc3545;
+    border: 2px solid #dc3545;
+    font-weight: 600;
+}
+
+.btn-clear:hover {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(220, 53, 69, 0.3);
 }
 
 /* 输出区域 */

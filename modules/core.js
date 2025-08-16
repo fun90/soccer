@@ -79,6 +79,16 @@ class SmartContentManager {
         // 更新计数器
         // 安全调用updateCharCounter函数
         safeCall('updateCharCounter', this.type);
+        
+        // 触发自定义事件，通知内容已处理完成
+        this.textarea.dispatchEvent(new CustomEvent('smartContentReady', {
+            detail: {
+                type: this.type,
+                contentLength: this.content.length,
+                content: this.content
+            }
+        }));
+        console.log(`SmartContentManager: 触发smartContentReady事件，类型: ${this.type}`);
     }
     
     updatePlaceholder() {
