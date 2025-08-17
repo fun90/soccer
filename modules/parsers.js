@@ -1,5 +1,5 @@
 // parsers.js - 解析器模块：处理联赛、比赛、统计和事件数据
-// 优化版本：缓存、性能监控、批处理
+// 简化版本：保持原有功能，减少复杂性
 
 // 性能监控和缓存系统
 const ParserCache = {
@@ -67,13 +67,33 @@ const PerformanceMonitor = {
     }
 };
 
-// 解析联赛信息（优化版本 - 适配新表格结构）
+// 通用工具函数
+function showError(message, outputElement) {
+    outputElement.innerHTML = `<div class="error">${message}</div>`;
+}
+
+function showSuccess(message, markdown, outputElement) {
+    outputElement.innerHTML = `<div class="success">${message}</div><pre>${markdown}</pre>`;
+}
+
+function showProcessing(message, outputElement) {
+    outputElement.innerHTML = `<div class="processing"><div class="spinner"></div>${message}</div>`;
+}
+
+function createMarkdownTable(headers, rows) {
+    const headerRow = `| ${headers.join(' | ')} |`;
+    const separatorRow = `|${headers.map(() => '------').join('|')}|`;
+    const dataRows = rows.map(row => `| ${row.join(' | ')} |`);
+    return [headerRow, separatorRow, ...dataRows].join('\n') + '\n';
+}
+
+// 解析联赛信息（简化版本）
 function parseLeagues() {
     const htmlContent = getHtmlContent('league');
     const outputDiv = document.getElementById('league-output');
     
     if (!htmlContent) {
-        outputDiv.innerHTML = '<div class="error">请先输入HTML内容</div>';
+        showError('请先输入HTML内容', outputDiv);
         return;
     }
     
@@ -86,7 +106,7 @@ function parseLeagues() {
         
         if (ParserCache.resultCache.has(cacheKey)) {
             const cachedResult = ParserCache.resultCache.get(cacheKey);
-            outputDiv.innerHTML = `<div class="success">成功提取 ${cachedResult.count} 个联赛信息 (缓存)</div><pre>${cachedResult.markdown}</pre>`;
+            showSuccess(`成功提取 ${cachedResult.count} 个联赛信息 (缓存)`, cachedResult.markdown, outputDiv);
             setGlobalData('currentLeagueData', cachedResult.markdown);
             autoCopyAndClear(cachedResult.markdown, '联赛信息', 'league');
             PerformanceMonitor.end('parseLeagues');
@@ -96,11 +116,11 @@ function parseLeagues() {
         // 使用缓存的DOM解析
         const doc = ParserCache.getParsedDoc(htmlContent);
         
-        // 查找比赛行数据（新结构：tr[id^="tr1_"]）
+        // 查找比赛行数据
         const matchRows = ParserCache.getQueryResult(doc, 'tr[id^="tr1_"]', contentHash);
         
         if (matchRows.length === 0) {
-            outputDiv.innerHTML = '<div class="error">未找到比赛数据，请检查HTML格式</div>';
+            showError('未找到比赛数据，请检查HTML格式', outputDiv);
             PerformanceMonitor.end('parseLeagues');
             return;
         }
@@ -108,7 +128,6 @@ function parseLeagues() {
         // 提取联赛信息 - 使用Set去重
         const leaguesSet = new Set();
         
-        // 从每行的第一个td中提取联赛名称
         for (const row of matchRows) {
             const firstCell = row.querySelector('td:first-child span');
             if (firstCell) {
@@ -120,7 +139,7 @@ function parseLeagues() {
         }
         
         if (leaguesSet.size === 0) {
-            outputDiv.innerHTML = '<div class="error">未找到联赛数据，请检查HTML格式</div>';
+            showError('未找到联赛数据，请检查HTML格式', outputDiv);
             PerformanceMonitor.end('parseLeagues');
             return;
         }
@@ -130,19 +149,14 @@ function parseLeagues() {
         
         // 生成Markdown
         let markdown = '# 足球联赛列表\n\n';
-        markdown += '| 联赛名称 |\n';
-        markdown += '|---------|\n';
-        
-        // 生成联赛列表
-        const leagueRows = leagues.map(league => `| ${league} |`);
-        markdown += leagueRows.join('\n') + '\n';
+        markdown += createMarkdownTable(['联赛名称'], leagues.map(league => [league]));
         
         // 缓存结果
         const result = { markdown, count: leagues.length };
         ParserCache.resultCache.set(cacheKey, result);
         
         setGlobalData('currentLeagueData', markdown);
-        outputDiv.innerHTML = `<div class="success">成功提取 ${leagues.length} 个联赛信息</div><pre>${markdown}</pre>`;
+        showSuccess(`成功提取 ${leagues.length} 个联赛信息`, markdown, outputDiv);
         
         // 自动复制结果到剪贴板并清空输入内容
         autoCopyAndClear(markdown, '联赛信息', 'league');
@@ -150,19 +164,19 @@ function parseLeagues() {
         PerformanceMonitor.end('parseLeagues');
         
     } catch (error) {
-        outputDiv.innerHTML = `<div class="error">解析失败: ${error.message}</div>`;
+        showError(`解析失败: ${error.message}`, outputDiv);
         PerformanceMonitor.end('parseLeagues');
     }
 }
 
-// 解析比赛数据（优化版本）
+// 解析比赛数据（简化版本）
 function parseMatches() {
     const htmlContent = getHtmlContent('match');
     const leagueFilterText = document.getElementById('league-filter').value.trim();
     const outputDiv = document.getElementById('match-output');
     
     if (!htmlContent) {
-        outputDiv.innerHTML = '<div class="error">请先输入HTML内容</div>';
+        showError('请先输入HTML内容', outputDiv);
         return;
     }
     
@@ -175,7 +189,7 @@ function parseMatches() {
         
         if (ParserCache.resultCache.has(cacheKey)) {
             const cachedResult = ParserCache.resultCache.get(cacheKey);
-            outputDiv.innerHTML = `<div class="success">${cachedResult.message} (缓存)</div><pre>${cachedResult.markdown}</pre>`;
+            showSuccess(`${cachedResult.message} (缓存)`, cachedResult.markdown, outputDiv);
             setGlobalData('currentMatchData', cachedResult.markdown);
             autoCopyAndClear(cachedResult.markdown, '比赛数据', 'match');
             PerformanceMonitor.end('parseMatches');
@@ -183,9 +197,9 @@ function parseMatches() {
         }
         
         // 显示处理中状态
-        outputDiv.innerHTML = '<div class="processing"><div class="spinner"></div>正在解析数据，请稍候...</div>';
+        showProcessing('正在解析数据，请稍候...', outputDiv);
         
-        // 解析联赛筛选条件 - 优化：使用Set提高查找性能
+        // 解析联赛筛选条件
         const targetLeaguesSet = leagueFilterText ? 
             new Set(leagueFilterText.split('\n').map(league => league.trim()).filter(league => league)) : 
             new Set();
@@ -200,43 +214,39 @@ function parseMatches() {
                 if (targetLeaguesSet.size > 0) {
                     markdown += `## 筛选联赛: ${Array.from(targetLeaguesSet).join(', ')}\n\n`;
                 }
-                markdown += '| 时间 | 联赛 | 状态 | 主队 | 比分 | 客队 | 半场 |\n';
-                markdown += '|------|------|------|------|------|------|------|\n';
+                markdown += createMarkdownTable(['时间', '联赛', '状态', '主队', '比分', '客队', '半场'], []);
                 
                 // 使用缓存的查询结果
                 const matchRows = ParserCache.getQueryResult(doc, 'tr[id^="tr1_"]', contentHash);
                 
                 if (matchRows.length === 0) {
-                    outputDiv.innerHTML = '<div class="error">未找到比赛数据，请检查HTML格式</div>';
+                    showError('未找到比赛数据，请检查HTML格式', outputDiv);
                     PerformanceMonitor.end('parseMatches');
                     return;
                 }
                 
-                // 优化的行处理函数 - 适配新表格结构
+                // 处理比赛行
                 function processMatchRow(row, index) {
                     const cells = row.querySelectorAll('td');
                     if (cells.length >= 7) {
-                        // 预提取所有需要的文本内容 - 根据新HTML结构调整列索引
                         const cellTexts = [
-                            cells[1]?.textContent.trim() || '-', // time (赛事时间)
-                            cells[0]?.querySelector('span')?.textContent.trim() || '-', // league (联赛)
-                            '-', // status (新结构中没有状态列，使用'-'占位)
-                            cells[3]?.textContent.trim() || '-', // homeTeam (主场球队)
-                            cells[4]?.textContent.trim() || '-', // score (比分)
-                            cells[5]?.textContent.trim() || '-', // awayTeam (客场球队)
-                            cells[6]?.textContent.trim() || '-'  // halfTime (半场)
+                            cells[1]?.textContent.trim() || '-', // time
+                            cells[0]?.querySelector('span')?.textContent.trim() || '-', // league
+                            '-', // status (占位)
+                            cells[3]?.textContent.trim() || '-', // homeTeam
+                            cells[4]?.textContent.trim() || '-', // score
+                            cells[5]?.textContent.trim() || '-', // awayTeam
+                            cells[6]?.textContent.trim() || '-'  // halfTime
                         ];
                         
-                        // 优化的联赛筛选 - 使用Set.has()代替数组遍历
+                        // 联赛筛选
                         if (targetLeaguesSet.size > 0) {
                             const league = cellTexts[1];
                             let isMatch = false;
                             
-                            // 优化：先检查完全匹配，再检查包含关系
                             if (targetLeaguesSet.has(league)) {
                                 isMatch = true;
                             } else {
-                                // 只有在没有完全匹配时才进行包含检查
                                 for (const targetLeague of targetLeaguesSet) {
                                     if (league.includes(targetLeague) || targetLeague.includes(league)) {
                                         isMatch = true;
@@ -246,7 +256,7 @@ function parseMatches() {
                             }
                             
                             if (!isMatch) {
-                                return null; // 跳过不匹配的联赛
+                                return null;
                             }
                         }
                         
@@ -258,7 +268,7 @@ function parseMatches() {
                 // 进度更新函数
                 function updateProgress(processed, total) {
                     const percent = Math.round((processed / total) * 100);
-                    outputDiv.innerHTML = `<div class="processing"><div class="spinner"></div>正在处理数据... ${percent}% (${processed}/${total})</div>`;
+                    showProcessing(`正在处理数据... ${percent}% (${processed}/${total})`, outputDiv);
                 }
                 
                 // 处理完成函数
@@ -275,7 +285,7 @@ function parseMatches() {
                     const result = { markdown, message: totalMessage, count: filteredCount };
                     ParserCache.resultCache.set(cacheKey, result);
                     
-                    outputDiv.innerHTML = `<div class="success">${totalMessage}</div><pre>${markdown}</pre>`;
+                    showSuccess(totalMessage, markdown, outputDiv);
                     
                     // 自动复制结果到剪贴板并清空输入内容
                     autoCopyAndClear(markdown, '比赛数据', 'match');
@@ -283,18 +293,18 @@ function parseMatches() {
                     PerformanceMonitor.end('parseMatches');
                 }
                 
-                // 智能批处理 - 根据数据量动态调整批大小
+                // 智能批处理
                 const batchSize = matchRows.length > 1000 ? 50 : matchRows.length > 500 ? 100 : 200;
                 processBatch(Array.from(matchRows), batchSize, processMatchRow, onComplete, updateProgress);
                 
             } catch (error) {
-                outputDiv.innerHTML = `<div class="error">解析失败: ${error.message}</div>`;
+                showError(`解析失败: ${error.message}`, outputDiv);
                 PerformanceMonitor.end('parseMatches');
             }
         }, 10);
         
     } catch (error) {
-        outputDiv.innerHTML = `<div class="error">解析失败: ${error.message}</div>`;
+        showError(`解析失败: ${error.message}`, outputDiv);
         PerformanceMonitor.end('parseMatches');
     }
 }
@@ -385,10 +395,9 @@ function parseFullMatchData() {
     }
 }
 
-// 从完整HTML中解析技术统计（优化版本）
+// 从完整HTML中解析技术统计（简化版本）
 function parseStatsFromFullHtml(htmlContent, contentHash = null) {
     try {
-        // 使用传入的hash或生成新的hash
         const hash = contentHash || ParserCache._hash(htmlContent);
         const cacheKey = `stats_${hash}`;
         
@@ -402,43 +411,36 @@ function parseStatsFromFullHtml(htmlContent, contentHash = null) {
         
         let markdown = '## 技术统计\n\n';
         
-        // 提取比赛信息（优化版本）
+        // 提取比赛信息
         const matchInfo = extractMatchInfo(doc, hash);
         if (matchInfo.homeTeam && matchInfo.awayTeam) {
             markdown += `### ${matchInfo.homeTeam} ${matchInfo.homeScore} - ${matchInfo.awayScore} ${matchInfo.awayTeam}\n\n`;
             
-            // 优化：使用数组join代替字符串拼接
-            const basicInfoParts = [];
-            if (matchInfo.league) basicInfoParts.push(`**联赛**: ${matchInfo.league}`);
-            if (matchInfo.matchTime) basicInfoParts.push(`**时间**: ${matchInfo.matchTime}`);
-            if (matchInfo.venue) basicInfoParts.push(`**场地**: ${matchInfo.venue}`);
+            // 基本信息
+            const basicInfo = [];
+            if (matchInfo.league) basicInfo.push(`**联赛**: ${matchInfo.league}`);
+            if (matchInfo.matchTime) basicInfo.push(`**时间**: ${matchInfo.matchTime}`);
+            if (matchInfo.venue) basicInfo.push(`**场地**: ${matchInfo.venue}`);
             
-            if (basicInfoParts.length > 0) {
-                markdown += basicInfoParts.join(' | ') + '\n\n';
+            if (basicInfo.length > 0) {
+                markdown += basicInfo.join(' | ') + '\n\n';
             }
             
-            // 比赛状态信息
-            const statusInfoParts = [];
-            if (matchInfo.currentTime) statusInfoParts.push(`**比赛进行**: ${matchInfo.currentTime}`);
-            if (matchInfo.weather) statusInfoParts.push(`**天气**: ${matchInfo.weather}`);
-            if (matchInfo.temperature) statusInfoParts.push(`**温度**: ${matchInfo.temperature}`);
+            // 状态信息
+            const statusInfo = [];
+            if (matchInfo.currentTime) statusInfo.push(`**比赛进行**: ${matchInfo.currentTime}`);
+            if (matchInfo.weather) statusInfo.push(`**天气**: ${matchInfo.weather}`);
+            if (matchInfo.temperature) statusInfo.push(`**温度**: ${matchInfo.temperature}`);
             
-            if (statusInfoParts.length > 0) {
-                markdown += statusInfoParts.join(' | ') + '\n\n';
+            if (statusInfo.length > 0) {
+                markdown += statusInfo.join(' | ') + '\n\n';
             }
         }
         
-        markdown += '| 统计项目 | 主队 | 客队 |\n';
-        markdown += '|----------|------|------|\n';
-        
-        // 优化的统计项目查找 - 使用优先级查询
-        const selectors = [
-            '#teamTechDiv .lists',
-            '.teamTechDiv .lists', 
-            '.lists'
-        ];
-        
+        // 查找统计项目 - 使用优先级查询
+        const selectors = ['#teamTechDiv .lists', '.teamTechDiv .lists', '.lists'];
         let statItems = null;
+        
         for (const selector of selectors) {
             statItems = ParserCache.getQueryResult(doc, selector, hash);
             if (statItems.length > 0) {
@@ -448,7 +450,7 @@ function parseStatsFromFullHtml(htmlContent, contentHash = null) {
                         const dataDiv = item.querySelector('.data');
                         if (dataDiv) {
                             const spans = dataDiv.querySelectorAll('span');
-                            return spans.length >= 3; // 技术统计通常有3个span
+                            return spans.length >= 3;
                         }
                         return false;
                     });
@@ -463,11 +465,9 @@ function parseStatsFromFullHtml(htmlContent, contentHash = null) {
             return result;
         }
         
-        // 优化的统计数据处理
+        // 提取统计数据
         const statsData = [];
-        const markdownRows = [];
-        
-        // 预编译正则表达式
+        const tableRows = [];
         const timeRegex = /分钟|'/;
         
         for (const item of statItems) {
@@ -479,10 +479,9 @@ function parseStatsFromFullHtml(htmlContent, contentHash = null) {
                     const statName = spans[1].textContent.trim();
                     const awayValue = spans[2].textContent.trim();
                     
-                    // 优化的过滤条件
+                    // 过滤时间相关项目
                     if (statName && !timeRegex.test(statName)) {
-                        markdownRows.push(`| ${statName} | ${homeValue} | ${awayValue} |\n`);
-                        
+                        tableRows.push([statName, homeValue, awayValue]);
                         statsData.push({
                             name: statName,
                             home: homeValue,
@@ -493,26 +492,21 @@ function parseStatsFromFullHtml(htmlContent, contentHash = null) {
             }
         }
         
-        // 使用join提高性能
-        markdown += markdownRows.join('');
+        // 生成表格
+        markdown += createMarkdownTable(['统计项目', '主队', '客队'], tableRows);
         
         const result = { success: statsData.length > 0, markdown: markdown, data: statsData };
-        
-        // 缓存结果
         ParserCache.resultCache.set(cacheKey, result);
-        
         return result;
         
     } catch (error) {
-        const result = { success: false, markdown: '', data: [] };
-        return result;
+        return { success: false, markdown: '', data: [] };
     }
 }
 
-// 从完整HTML中解析详细事件（优化版本）
+// 从完整HTML中解析详细事件（简化版本）
 function parseEventsFromFullHtml(htmlContent, contentHash = null) {
     try {
-        // 使用传入的hash或生成新的hash
         const hash = contentHash || ParserCache._hash(htmlContent);
         const cacheKey = `events_${hash}`;
         
@@ -526,13 +520,10 @@ function parseEventsFromFullHtml(htmlContent, contentHash = null) {
         
         let markdown = '## 详细事件\n\n';
         
-        // 查找比赛队伍信息 - 优先从analyhead获取，备选从事件区域获取
-        let homeTeam = '';
-        let awayTeam = '';
-        let homeScore = '0';
-        let awayScore = '0';
+        // 查找比赛队伍信息 - 优先从analyhead获取
+        let homeTeam = '', awayTeam = '', homeScore = '0', awayScore = '0';
         
-        // 先尝试从analyhead获取（复用优化后的extractMatchInfo）
+        // 先尝试从analyhead获取
         const matchInfo = extractMatchInfo(doc, hash);
         if (matchInfo.homeTeam && matchInfo.awayTeam) {
             homeTeam = matchInfo.homeTeam;
@@ -540,18 +531,16 @@ function parseEventsFromFullHtml(htmlContent, contentHash = null) {
             homeScore = matchInfo.homeScore;
             awayScore = matchInfo.awayScore;
         } else {
-            // 备选：从事件区域获取（使用缓存查询）
+            // 备选：从事件区域获取
             const teamInfo = ParserCache.getQueryResult(doc, '.teamtit .data', hash)[0];
             if (teamInfo) {
                 const homeTeamSpan = teamInfo.querySelector('.homeTN');
                 const awayTeamSpan = teamInfo.querySelector('.guestTN');
                 
-                // 优化的团队信息提取
                 if (homeTeamSpan) {
                     const homeScoreElement = homeTeamSpan.querySelector('i');
                     if (homeScoreElement) {
                         homeScore = homeScoreElement.textContent.trim();
-                        // 优化：避免DOM克隆，直接处理文本
                         homeTeam = homeTeamSpan.textContent.replace(homeScore, '').trim();
                     } else {
                         homeTeam = homeTeamSpan.textContent.trim();
@@ -562,7 +551,6 @@ function parseEventsFromFullHtml(htmlContent, contentHash = null) {
                     const awayScoreElement = awayTeamSpan.querySelector('i');
                     if (awayScoreElement) {
                         awayScore = awayScoreElement.textContent.trim();
-                        // 优化：避免DOM克隆，直接处理文本
                         awayTeam = awayTeamSpan.textContent.replace(awayScore, '').trim();
                     } else {
                         awayTeam = awayTeamSpan.textContent.trim();
@@ -575,23 +563,15 @@ function parseEventsFromFullHtml(htmlContent, contentHash = null) {
             markdown += `### ${homeTeam} ${homeScore} - ${awayScore} ${awayTeam}\n\n`;
         }
         
-        markdown += '| 时间 | 主队事件 | 客队事件 |\n';
-        markdown += '|------|---------|----------|\n';
-        
-        // 优化的事件查找 - 使用优先级查询
-        const selectors = [
-            '#teamEventDiv .lists',
-            '.teamEventDiv .lists',
-            '.lists'
-        ];
-        
+        // 查找事件列表 - 使用优先级查询
+        const selectors = ['#teamEventDiv .lists', '.teamEventDiv .lists', '.lists'];
         let eventItems = null;
+        
         for (const selector of selectors) {
             eventItems = ParserCache.getQueryResult(doc, selector, hash);
             if (eventItems.length > 0) {
                 // 如果是通用选择器，需要过滤事件相关数据
                 if (selector === '.lists') {
-                    // 预编译正则表达式
                     const timeRegex = /\d+'|分钟/;
                     eventItems = Array.from(eventItems).filter(item => {
                         const dataDiv = item.querySelector('.data');
@@ -615,9 +595,9 @@ function parseEventsFromFullHtml(htmlContent, contentHash = null) {
             return result;
         }
         
-        // 优化的事件处理 - 批量处理
-        const markdownRows = [];
-        const timeRegex = /\d+/; // 预编译正则表达式
+        // 提取事件数据
+        const eventRows = [];
+        const timeRegex = /\d+/;
         
         for (const item of eventItems) {
             const dataDiv = item.querySelector('.data');
@@ -626,29 +606,25 @@ function parseEventsFromFullHtml(htmlContent, contentHash = null) {
                 if (spans.length >= 3) {
                     const time = spans[1]?.textContent.trim() || '';
                     
-                    // 优化：只处理有效时间格式的事件
+                    // 只处理有效时间格式的事件
                     if (time && (time.includes('\'') || timeRegex.test(time))) {
                         const homeEvent = spans[0] ? parseEventContent(spans[0]) : '';
                         const awayEvent = spans[2] ? parseEventContent(spans[2]) : '';
-                        markdownRows.push(`| ${time} | ${homeEvent} | ${awayEvent} |\n`);
+                        eventRows.push([time, homeEvent, awayEvent]);
                     }
                 }
             }
         }
         
-        // 使用join提高性能
-        markdown += markdownRows.join('');
+        // 生成表格
+        markdown += createMarkdownTable(['时间', '主队事件', '客队事件'], eventRows);
         
-        const result = { success: markdownRows.length > 0, markdown: markdown, data: markdownRows.length };
-        
-        // 缓存结果
+        const result = { success: eventRows.length > 0, markdown: markdown, data: eventRows.length };
         ParserCache.resultCache.set(cacheKey, result);
-        
         return result;
         
     } catch (error) {
-        const result = { success: false, markdown: '', data: [] };
-        return result;
+        return { success: false, markdown: '', data: [] };
     }
 }
 
