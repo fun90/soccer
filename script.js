@@ -436,9 +436,54 @@
         window.testSmallPaste = () => testAutoParse('league', false);
         window.testLargePaste = () => testAutoParse('league', true);
         
+        // 测试新流程的函数
+        window.testNewWorkflow = function(type = 'league') {
+            console.log('🧪 测试新工作流程: 粘贴→自动提取→自动复制→清空输入→保留结果');
+            
+            const baseContent = '<span onclick="CheckLeague(1,2)">测试联赛[5]</span>';
+            const testContent = baseContent.repeat(10); // 足够触发自动提取
+            
+            const textarea = document.getElementById(type + '-html');
+            const outputDiv = document.getElementById(
+                type === 'league' ? 'league-output' : 
+                type === 'match' ? 'match-output' : 
+                'combined-output'
+            );
+            
+            if (textarea && outputDiv) {
+                console.log('📝 步骤1: 模拟粘贴内容');
+                textarea.value = testContent;
+                
+                // 触发input事件，模拟内容变化
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                console.log('✅ 测试内容已填入');
+                console.log('📊 等待自动提取、复制和清空...');
+                
+                // 检查工作流程结果
+                setTimeout(() => {
+                    const inputCleared = textarea.value.length === 0;
+                    const hasOutput = outputDiv.innerHTML.includes('成功提取');
+                    
+                    console.log('📋 工作流程结果检查:');
+                    console.log(`   输入已清空: ${inputCleared ? '✅' : '❌'}`);
+                    console.log(`   结果已保留: ${hasOutput ? '✅' : '❌'}`);
+                    
+                    if (inputCleared && hasOutput) {
+                        console.log('🎉 新工作流程测试成功！');
+                    } else {
+                        console.log('⚠️ 工作流程可能需要调整');
+                    }
+                }, 3000);
+            } else {
+                console.error('❌ 未找到必要的元素');
+            }
+        };
+        
         console.log('💡 调试提示:');
         console.log('   - testSmallPaste() : 测试小文件粘贴 (普通模式)');
         console.log('   - testLargePaste() : 测试大文件粘贴 (SmartContentManager模式)');
+        console.log('   - testNewWorkflow() : 测试新工作流程 (粘贴→提取→复制→清空→保留)');
     }
     
     // 显示粘贴提示

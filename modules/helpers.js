@@ -65,6 +65,50 @@ function autoCopyToClipboard(content, typeName) {
     }
 }
 
+// 自动复制并清空输入内容的函数
+function autoCopyAndClear(content, typeName, type) {
+    if (!content) return;
+    
+    // 使用现代剪贴板API
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(content).then(() => {
+            showAutoCopySuccess(typeName);
+            clearInputContent(type);
+        }).catch(err => {
+            fallbackAutoCopyAndClear(content, typeName, type);
+        });
+    } else {
+        // 降级到传统方法
+        fallbackAutoCopyAndClear(content, typeName, type);
+    }
+}
+
+// 清空输入内容但保留结果显示
+function clearInputContent(type) {
+    // 使用UI模块的clearInputOnly函数
+    if (typeof window.clearInputOnly === 'function') {
+        window.clearInputOnly(type);
+    } else {
+        // 降级处理
+        const textarea = document.getElementById(type + '-html');
+        if (textarea) {
+            textarea.value = '';
+            textarea.style.display = 'block';
+        }
+        
+        const managers = getSmartManagers();
+        if (managers[type]) {
+            managers[type].clearContent();
+        }
+        
+        if (typeof window.updateCharCounter === 'function') {
+            window.updateCharCounter(type);
+        }
+        
+        console.log(`✅ 已清空${type}的输入内容，保留解析结果`);
+    }
+}
+
 // 降级自动复制方法
 function fallbackAutoCopy(text, typeName) {
     const textArea = document.createElement('textarea');
@@ -80,6 +124,31 @@ function fallbackAutoCopy(text, typeName) {
         const successful = document.execCommand('copy');
         if (successful) {
             showAutoCopySuccess(typeName);
+        }
+    } catch (err) {
+        // 自动复制失败时不显示错误，因为是自动操作
+        console.log('自动复制失败，用户可手动复制');
+    }
+    
+    document.body.removeChild(textArea);
+}
+
+// 降级自动复制并清空方法
+function fallbackAutoCopyAndClear(text, typeName, type) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            showAutoCopySuccess(typeName);
+            clearInputContent(type);
         }
     } catch (err) {
         // 自动复制失败时不显示错误，因为是自动操作
@@ -146,6 +215,8 @@ window.setGlobalData = setGlobalData;
 window.getGlobalData = getGlobalData;
 window.safeCall = safeCall;
 window.autoCopyToClipboard = autoCopyToClipboard;
+window.autoCopyAndClear = autoCopyAndClear;
+window.clearInputContent = clearInputContent;
 
 // 导出辅助函数（用于模块化）
 if (typeof module !== 'undefined' && module.exports) {
@@ -155,6 +226,8 @@ if (typeof module !== 'undefined' && module.exports) {
         setGlobalData,
         getGlobalData,
         safeCall,
-        autoCopyToClipboard
+        autoCopyToClipboard,
+        autoCopyAndClear,
+        clearInputContent
     };
 }

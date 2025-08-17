@@ -88,8 +88,8 @@ function parseLeagues() {
         setGlobalData('currentLeagueData', markdown);
         outputDiv.innerHTML = `<div class="success">成功提取 ${leagueSpans.length} 个联赛信息</div><pre>${markdown}</pre>`;
         
-        // 自动复制结果到剪贴板
-        autoCopyToClipboard(markdown, '联赛信息');
+        // 自动复制结果到剪贴板并清空输入内容
+        autoCopyAndClear(markdown, '联赛信息', 'league');
         
     } catch (error) {
         outputDiv.innerHTML = `<div class="error">解析失败: ${error.message}</div>`;
@@ -179,8 +179,8 @@ function parseMatches() {
                     `成功提取 ${filteredCount} 场比赛数据`;
                 outputDiv.innerHTML = `<div class="success">${totalMessage}</div><pre>${markdown}</pre>`;
                 
-                // 自动复制结果到剪贴板
-                autoCopyToClipboard(markdown, '比赛数据');
+                // 自动复制结果到剪贴板并清空输入内容
+                autoCopyAndClear(markdown, '比赛数据', 'match');
             }
             
             // 分批处理，每批50条
@@ -239,8 +239,8 @@ function parseFullMatchData() {
                 
                 outputDiv.innerHTML = `<div class="success">成功提取 ${statsCount}${separator}${eventsCount}</div><pre>${combinedMarkdown}</pre>`;
                 
-                // 自动复制结果到剪贴板
-                autoCopyToClipboard(combinedMarkdown, '比赛数据');
+                // 自动复制结果到剪贴板并清空输入内容
+                autoCopyAndClear(combinedMarkdown, '比赛数据', 'stats');
             } else {
                 outputDiv.innerHTML = '<div class="error">未找到有效数据，请检查HTML格式。确保包含技术统计(.lists)或详细事件(.lists)数据。</div>';
             }

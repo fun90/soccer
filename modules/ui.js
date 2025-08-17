@@ -103,6 +103,26 @@ function clearStatsInput() {
     updateCharCounter('stats');
 }
 
+// 只清空输入内容，保留解析结果的清空函数
+function clearInputOnly(type) {
+    const textarea = document.getElementById(type + '-html');
+    if (textarea) {
+        textarea.value = '';
+        textarea.style.display = 'block'; // 确保textarea显示
+    }
+    
+    // 清空SmartContentManager内容
+    const managers = getSmartManagers();
+    if (managers[type]) {
+        managers[type].clearContent();
+    }
+    
+    // 更新字符计数器
+    updateCharCounter(type);
+    
+    console.log(`✅ 已清空${type}的输入内容，保留解析结果`);
+}
+
 
 // 复制Markdown内容到剪贴板
 function copyMarkdown(type) {
@@ -222,6 +242,7 @@ function showCopyError() {
 
 // 将关键函数暴露到全局，确保跨模块访问
 window.updateCharCounter = updateCharCounter;
+window.clearInputOnly = clearInputOnly;
 
 // 导出UI函数（用于模块化）
 if (typeof module !== 'undefined' && module.exports) {
@@ -237,6 +258,7 @@ if (typeof module !== 'undefined' && module.exports) {
         copyMarkdown,
         fallbackCopyTextToClipboard,
         showCopySuccess,
-        showCopyError
+        showCopyError,
+        clearInputOnly
     };
 }
