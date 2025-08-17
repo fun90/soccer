@@ -48,10 +48,29 @@ class SmartContentManager {
         const pastedText = (e.clipboardData || window.clipboardData).getData('text');
         console.log(`SmartContentManager: 粘贴事件触发，内容长度: ${pastedText.length}`);
         
+        // 统一阻止默认粘贴行为，避免重复事件触发
+        e.preventDefault();
+        
         if (pastedText.length > 50000) { // 超过50KB时启用智能模式
             console.log(`SmartContentManager: 内容超过50KB，启用智能存储模式`);
-            e.preventDefault();
             this.setLargeContent(pastedText);
+        } else {
+            console.log(`SmartContentManager: 内容较小，直接设置到textarea`);
+            // 手动设置textarea值，避免input事件重复触发
+            this.textarea.value = pastedText;
+            
+            // 更新计数器
+            safeCall('updateCharCounter', this.type);
+            
+            // 触发统一的内容就绪事件（在document上触发，确保script.js能监听到）
+            document.dispatchEvent(new CustomEvent('smartContentReady', {
+                detail: {
+                    type: this.type,
+                    contentLength: pastedText.length,
+                    content: pastedText
+                }
+            }));
+            console.log(`SmartContentManager: 触发smartContentReady事件，类型: ${this.type}`);
         }
     }
     
@@ -80,8 +99,8 @@ class SmartContentManager {
         // 安全调用updateCharCounter函数
         safeCall('updateCharCounter', this.type);
         
-        // 触发自定义事件，通知内容已处理完成
-        this.textarea.dispatchEvent(new CustomEvent('smartContentReady', {
+        // 触发自定义事件，通知内容已处理完成（在document上触发，确保script.js能监听到）
+        document.dispatchEvent(new CustomEvent('smartContentReady', {
             detail: {
                 type: this.type,
                 contentLength: this.content.length,

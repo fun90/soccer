@@ -175,79 +175,15 @@
     // 粘贴快捷键监听器初始化
     function initializePasteShortcuts() {
         const shortcuts = getPlatformShortcuts();
-        // 监听全局粘贴事件
+        // 监听全局粘贴事件（现在主要用于日志记录，实际处理由SmartContentManager统一处理）
         document.addEventListener('paste', function(event) {
             console.log('🔍 检测到粘贴事件:', event.target);
             
             // 检查是否在textarea中粘贴
             const target = event.target;
-            if (target && target.tagName === 'TEXTAREA') {
-                const textareaId = target.id;
-                console.log('📝 粘贴目标textarea:', textareaId);
-                
-                // 根据textarea ID确定处理类型
-                let parseFunction = null;
-                let clearFunction = null;
-                
-                if (textareaId === 'league-html') {
-                    parseFunction = 'parseLeagues';
-                    clearFunction = 'clearLeagueInput';
-                } else if (textareaId === 'match-html') {
-                    parseFunction = 'parseMatches';
-                    clearFunction = 'clearMatchInput';
-                } else if (textareaId === 'stats-html') {
-                    parseFunction = 'parseFullMatchData';
-                    clearFunction = 'clearStatsInput';
-                }
-                
-                if (parseFunction) {
-                    console.log('🎯 找到解析函数:', parseFunction);
-                    
-                    // 延迟执行，确保粘贴内容已加载
-                    setTimeout(() => {
-                        // 先触发SmartContentManager处理（如果存在）
-                        const type = textareaId.replace('-html', '');
-                        if (typeof window.updateCharCounter === 'function') {
-                            window.updateCharCounter(type);
-                            console.log('📊 已更新字符计数器:', type);
-                        }
-                        
-                        // 获取实际内容长度（考虑SmartContentManager）
-                        let contentLength = target.value.trim().length;
-                        let actualContent = target.value;
-                        
-                        // 如果SmartContentManager接管了内容，从管理器获取
-                        if (contentLength === 0 && typeof window.getHtmlContent === 'function') {
-                            actualContent = window.getHtmlContent(type);
-                            contentLength = actualContent ? actualContent.trim().length : 0;
-                            console.log('📋 从SmartContentManager获取内容长度:', contentLength);
-                        }
-                        
-                        console.log('📏 最终内容长度:', contentLength);
-                        
-                        // 如果有内容，自动触发解析（降低阈值）
-                        if (contentLength > 50) {
-                            console.log('✅ 普通粘贴内容长度足够，开始自动提取...');
-                            showPasteHint('检测到粘贴内容，正在自动提取...');
-                            
-                            // 延迟执行解析，给用户看到提示
-                            setTimeout(() => {
-                                console.log('🚀 通过普通粘贴事件执行解析函数:', parseFunction);
-                                if (typeof window[parseFunction] === 'function') {
-                                    window[parseFunction]();
-                                } else {
-                                    console.error('❌ 解析函数不存在:', parseFunction);
-                                }
-                            }, 800);
-                        } else {
-                            console.log('⚠️ 普通粘贴内容长度不足，跳过自动提取');
-                        }
-                    }, 300); // 增加延迟，给SmartContentManager更多处理时间
-                } else {
-                    console.log('❌ 未找到对应的解析函数');
-                }
-            } else {
-                console.log('❓ 粘贴目标不是textarea:', target.tagName);
+            if (target && target.tagName === 'TEXTAREA' && target.id.endsWith('-html')) {
+                console.log('📝 粘贴目标textarea:', target.id);
+                console.log('ℹ️ 粘贴处理已交由SmartContentManager统一管理');
             }
         });
         
