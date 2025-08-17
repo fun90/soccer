@@ -827,7 +827,10 @@ function extractMatchInfo(doc, contentHash = null) {
         if (leagueLink) matchInfo.league = leagueLink.textContent.trim();
         if (timeSpan) matchInfo.matchTime = timeSpan.textContent.trim();
         if (venueLink) matchInfo.venue = venueLink.textContent.trim();
-        if (currentTimeElement) matchInfo.currentTime = currentTimeElement.textContent.trim();
+        if (currentTimeElement) {
+            const timeText = currentTimeElement.textContent.trim();
+            matchInfo.currentTime = timeText === '中' ? '中场休息' : timeText;
+        }
         
         // 优化：批量提取比分
         const scoreElements = vsDiv.querySelectorAll('.score');
