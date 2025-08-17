@@ -67,7 +67,7 @@ const PerformanceMonitor = {
     }
 };
 
-// 解析联赛信息（优化版本）
+// 解析联赛信息（优化版本 - 适配新表格结构）
 function parseLeagues() {
     const htmlContent = getHtmlContent('league');
     const outputDiv = document.getElementById('league-output');
@@ -96,78 +96,53 @@ function parseLeagues() {
         // 使用缓存的DOM解析
         const doc = ParserCache.getParsedDoc(htmlContent);
         
-        // 使用缓存的查询结果
-        const leagueSpans = ParserCache.getQueryResult(doc, 'span[onclick*="CheckLeague"]', contentHash);
+        // 查找比赛行数据（新结构：tr[id^="tr1_"]）
+        const matchRows = ParserCache.getQueryResult(doc, 'tr[id^="tr1_"]', contentHash);
         
-        if (leagueSpans.length === 0) {
+        if (matchRows.length === 0) {
+            outputDiv.innerHTML = '<div class="error">未找到比赛数据，请检查HTML格式</div>';
+            PerformanceMonitor.end('parseLeagues');
+            return;
+        }
+        
+        // 提取联赛信息 - 使用Set去重
+        const leaguesSet = new Set();
+        
+        // 从每行的第一个td中提取联赛名称
+        for (const row of matchRows) {
+            const firstCell = row.querySelector('td:first-child span');
+            if (firstCell) {
+                const leagueName = firstCell.textContent.trim();
+                if (leagueName) {
+                    leaguesSet.add(leagueName);
+                }
+            }
+        }
+        
+        if (leaguesSet.size === 0) {
             outputDiv.innerHTML = '<div class="error">未找到联赛数据，请检查HTML格式</div>';
             PerformanceMonitor.end('parseLeagues');
             return;
         }
         
+        // 转换为数组并排序
+        const leagues = Array.from(leaguesSet).sort();
+        
+        // 生成Markdown
         let markdown = '# 足球联赛列表\n\n';
+        markdown += '| 联赛名称 |\n';
+        markdown += '|---------|\n';
         
-        // 优化的分组处理 - 使用Map提高性能
-        const groupMap = new Map();
-        const leagueRegex = /^(.+?)\[(\d+)\]$/; // 预编译正则表达式
-        
-        // 单次遍历处理所有数据
-        for (const span of leagueSpans) {
-            const text = span.textContent.trim();
-            const match = text.match(leagueRegex);
-            
-            if (match) {
-                const leagueName = match[1];
-                const matchCount = match[2];
-                
-                // 优化的分组查找
-                const groupElement = span.closest('.group');
-                let groupTitle = 'default';
-                
-                if (groupElement?.previousElementSibling) {
-                    groupTitle = groupElement.previousElementSibling.textContent.trim();
-                }
-                
-                if (!groupMap.has(groupTitle)) {
-                    groupMap.set(groupTitle, []);
-                }
-                
-                groupMap.get(groupTitle).push({
-                    name: leagueName,
-                    count: matchCount
-                });
-            }
-        }
-        
-        // 生成Markdown - 使用数组join提高性能
-        if (groupMap.size > 1 || (groupMap.size === 1 && !groupMap.has('default'))) {
-            const markdownParts = ['# 足球联赛列表\n\n'];
-            
-            for (const [groupName, leagues] of groupMap) {
-                if (groupName !== 'default') {
-                    markdownParts.push(`## ${groupName}字母开头联赛\n\n`);
-                }
-                markdownParts.push('| 联赛名称 |\n|---------|\n');
-                
-                // 使用map和join替代forEach
-                const leagueRows = leagues.map(league => `| ${league.name} |`);
-                markdownParts.push(leagueRows.join('\n') + '\n\n');
-            }
-            
-            markdown = markdownParts.join('');
-        } else {
-            // 无分组情况的优化处理
-            const leagues = groupMap.get('default') || [];
-            const leagueRows = leagues.map(league => `| ${league.name} |`);
-            markdown = '# 足球联赛列表\n\n| 联赛名称 |\n|---------|\n' + leagueRows.join('\n') + '\n';
-        }
+        // 生成联赛列表
+        const leagueRows = leagues.map(league => `| ${league} |`);
+        markdown += leagueRows.join('\n') + '\n';
         
         // 缓存结果
-        const result = { markdown, count: leagueSpans.length };
+        const result = { markdown, count: leagues.length };
         ParserCache.resultCache.set(cacheKey, result);
         
         setGlobalData('currentLeagueData', markdown);
-        outputDiv.innerHTML = `<div class="success">成功提取 ${leagueSpans.length} 个联赛信息</div><pre>${markdown}</pre>`;
+        outputDiv.innerHTML = `<div class="success">成功提取 ${leagues.length} 个联赛信息</div><pre>${markdown}</pre>`;
         
         // 自动复制结果到剪贴板并清空输入内容
         autoCopyAndClear(markdown, '联赛信息', 'league');
@@ -237,20 +212,19 @@ function parseMatches() {
                     return;
                 }
                 
-                // 优化的行处理函数 - 使用Map缓存选择器查询
-                const cellSelectors = ['', '', '', '', 'a', '', 'a', ''];
+                // 优化的行处理函数 - 适配新表格结构
                 function processMatchRow(row, index) {
                     const cells = row.querySelectorAll('td');
-                    if (cells.length >= 8) {
-                        // 预提取所有需要的文本内容
+                    if (cells.length >= 7) {
+                        // 预提取所有需要的文本内容 - 根据新HTML结构调整列索引
                         const cellTexts = [
-                            cells[2]?.textContent.trim() || '-', // time
-                            cells[1]?.textContent.trim() || '-', // league  
-                            cells[3]?.textContent.trim() || '-', // status
-                            cells[4]?.querySelector('a')?.textContent.trim() || cells[4]?.textContent.trim() || '-', // homeTeam
-                            cells[5]?.textContent.trim() || '-', // score
-                            cells[6]?.querySelector('a')?.textContent.trim() || cells[6]?.textContent.trim() || '-', // awayTeam
-                            cells[7]?.textContent.trim() || '-'  // halfTime
+                            cells[1]?.textContent.trim() || '-', // time (赛事时间)
+                            cells[0]?.querySelector('span')?.textContent.trim() || '-', // league (联赛)
+                            '-', // status (新结构中没有状态列，使用'-'占位)
+                            cells[3]?.textContent.trim() || '-', // homeTeam (主场球队)
+                            cells[4]?.textContent.trim() || '-', // score (比分)
+                            cells[5]?.textContent.trim() || '-', // awayTeam (客场球队)
+                            cells[6]?.textContent.trim() || '-'  // halfTime (半场)
                         ];
                         
                         // 优化的联赛筛选 - 使用Set.has()代替数组遍历
