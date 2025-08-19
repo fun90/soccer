@@ -599,6 +599,21 @@ function parseEventsFromFullHtml(htmlContent, contentHash = null) {
         const eventRows = [];
         const timeRegex = /\d+/;
         
+        // 事件统计用于预测伤停补时
+        let eventStats = {
+            goalsNoVAR: 0,
+            goalsVAR: 0,
+            pensNoVAR: 0,
+            pensVAR: 0,
+            subs: 0,
+            minorInjuries: 0,
+            seriousInjuries: 0,
+            varOther: 0,
+            redsOrBrawls: 0,
+            coolingBreaks: 0,
+            timeWastings: 0
+        };
+        
         for (const item of eventItems) {
             const dataDiv = item.querySelector('.data');
             if (dataDiv) {
@@ -608,16 +623,33 @@ function parseEventsFromFullHtml(htmlContent, contentHash = null) {
                     
                     // 只处理有效时间格式的事件
                     if (time && (time.includes('\'') || timeRegex.test(time))) {
-                        const homeEvent = spans[0] ? parseEventContent(spans[0]) : '';
-                        const awayEvent = spans[2] ? parseEventContent(spans[2]) : '';
-                        eventRows.push([time, homeEvent, awayEvent]);
+                        const homeEventResult = spans[0] ? parseEventContent(spans[0], true) : { content: '', stats: {} };
+                        const awayEventResult = spans[2] ? parseEventContent(spans[2], true) : { content: '', stats: {} };
+                        
+                        // 累计事件统计
+                        ['goalsNoVAR', 'goalsVAR', 'pensNoVAR', 'pensVAR', 'subs', 'minorInjuries', 
+                         'seriousInjuries', 'varOther', 'redsOrBrawls', 'coolingBreaks', 'timeWastings'].forEach(key => {
+                            eventStats[key] += (homeEventResult.stats[key] || 0) + (awayEventResult.stats[key] || 0);
+                        });
+                        
+                        eventRows.push([time, homeEventResult.content || '', awayEventResult.content || '']);
                     }
                 }
             }
         }
         
+        // 预测上半场伤停补时
+        const predictedStoppage = predictFirstHalfStoppage(eventStats);
+        
         // 生成表格
         markdown += createMarkdownTable(['时间', '主队事件', '客队事件'], eventRows);
+        
+        // 添加伤停补时预测
+        if (eventRows.length > 0) {
+            markdown += `\n### 📊 伤停补时预测\n\n`;
+            markdown += `**上半场预计伤停补时：${predictedStoppage} 分钟**\n\n`;
+            markdown += `*基于事件统计：进球${eventStats.goalsNoVAR + eventStats.goalsVAR}个，换人${eventStats.subs}次，红牌${eventStats.redsOrBrawls}张*\n\n`;
+        }
         
         const result = { success: eventRows.length > 0, markdown: markdown, data: eventRows.length };
         ParserCache.resultCache.set(cacheKey, result);
@@ -629,15 +661,33 @@ function parseEventsFromFullHtml(htmlContent, contentHash = null) {
 }
 
 // 解析事件内容
-function parseEventContent(spanElement) {
+function parseEventContent(spanElement, includeStats = false) {
     if (!spanElement) {
-        return '-';
+        return includeStats ? { content: '-', stats: {} } : '-';
     }
     
     let content = '';
     let eventType = '';
     let players = [];
     let assistPlayer = '';
+    
+    // 初始化统计对象
+    let stats = {
+        goalsNoVAR: 0,
+        goalsVAR: 0,
+        pensNoVAR: 0,
+        pensVAR: 0,
+        subs: 0,
+        minorInjuries: 0,
+        seriousInjuries: 0,
+        varOther: 0,
+        redsOrBrawls: 0,
+        coolingBreaks: 0,
+        timeWastings: 0
+    };
+    
+    // 首先检查文本内容中的VAR相关关键词
+    const fullTextContent = spanElement.textContent.toLowerCase();
     
     // 首先检查是否有图片标识（事件类型）
     const images = spanElement.querySelectorAll('img');
@@ -649,12 +699,72 @@ function parseEventContent(spanElement) {
             if (src && title) {
                 if (src.includes('bf_img2/1.png') || title === '入球') {
                     eventType = '⚽进球';
+                    // 检查是否包含VAR信息
+                    const textContent = spanElement.textContent.toLowerCase();
+                    if (textContent.includes('var') || textContent.includes('视频') || textContent.includes('复审')) {
+                        stats.goalsVAR = 1;
+                    } else {
+                        stats.goalsNoVAR = 1;
+                    }
+                } else if (src.includes('bf_img2/14.png') || title === '视频裁判') {
+                    // VAR视频裁判事件 - 检查文本内容确定具体类型
+                    if (fullTextContent.includes('入球') || fullTextContent.includes('进球') || fullTextContent.includes('入球复审')) {
+                        eventType = '⚽进球(VAR)';
+                        stats.goalsVAR = 1;
+                    } else if (fullTextContent.includes('点球') || fullTextContent.includes('點球')) {
+                        eventType = '[点球(VAR)]';
+                        stats.pensVAR = 1;
+                    } else {
+                        // 处理"视频回看"等其他VAR事件
+                        if (fullTextContent.includes('回看') || fullTextContent.includes('复核') || fullTextContent.includes('检查')) {
+                            eventType = '[VAR回看]';
+                        } else {
+                            eventType = '[VAR复审]';
+                        }
+                        stats.varOther = 1;
+                    }
                 } else if (src.includes('bf_img2/3.png') || title === '黄牌') {
                     eventType = '🟨黄牌';
                 } else if (src.includes('bf_img2/2.png') || title === '紅牌' || title === '红牌') {
                     eventType = '🟥红牌';
+                    stats.redsOrBrawls = 1;
                 } else if (src.includes('bf_img2/11.png') || title === '换人') {
                     eventType = '🔄换人';
+                    stats.subs = 1;
+                } else if (src.includes('bf_img2/7.png') || title === '点球') {
+                    eventType = '⚽点球';
+                    // 检查是否包含VAR信息
+                    if (fullTextContent.includes('var') || fullTextContent.includes('视频') || fullTextContent.includes('复审')) {
+                        stats.pensVAR = 1;
+                    } else {
+                        stats.pensNoVAR = 1;
+                    }
+                } else if (title.includes('点球') || title.includes('點球')) {
+                    eventType = `[${title}]`;
+                    // 检查是否包含VAR信息
+                    const textContent = spanElement.textContent.toLowerCase();
+                    if (textContent.includes('var') || textContent.includes('视频')) {
+                        stats.pensVAR = 1;
+                    } else {
+                        stats.pensNoVAR = 1;
+                    }
+                } else if (title.includes('伤') || title.includes('傷') || title.includes('医疗')) {
+                    eventType = `[${title}]`;
+                    // 判断是否严重伤情
+                    if (title.includes('担架') || title.includes('头部') || title.includes('重伤')) {
+                        stats.seriousInjuries = 1;
+                    } else {
+                        stats.minorInjuries = 1;
+                    }
+                } else if (title.includes('var') || title.includes('VAR') || title.includes('视频')) {
+                    eventType = `[${title}]`;
+                    stats.varOther = 1;
+                } else if (title.includes('饮水') || title.includes('暂停') || title.includes('降温')) {
+                    eventType = `[${title}]`;
+                    stats.coolingBreaks = 1;
+                } else if (title.includes('拖延') || title.includes('耗时') || title.includes('警告')) {
+                    eventType = `[${title}]`;
+                    stats.timeWastings = 1;
                 } else {
                     eventType = `[${title}]`; // 使用原始title作为事件类型，添加括号标识
                 }
@@ -671,10 +781,12 @@ function parseEventContent(spanElement) {
             const playerText = textContent.replace(imgTitles, '').trim();
             
             if (playerText && playerText !== eventType) {
-                return `${eventType} ${playerText}`;
+                content = `${eventType} ${playerText}`;
             } else {
-                return eventType;
+                content = eventType;
             }
+            
+            return includeStats ? { content, stats } : content;
         }
     }
     
@@ -731,7 +843,64 @@ function parseEventContent(spanElement) {
         }
     }
     
-    return content || '-';
+    return includeStats ? { content: content || '-', stats } : (content || '-');
+}
+
+/**
+ * 上半场伤停补时预测（分钟）
+ * 传入各类事件的数量，返回建议显示的补时时长（整数分钟）
+ */
+function predictFirstHalfStoppage({
+  baseMin = 1,          // 上半场基础值：1（无特殊事件时取 1）
+  goalsNoVAR = 0,       // 进球（无 VAR）
+  goalsVAR = 0,         // 进球（含 VAR 复核）
+  pensNoVAR = 0,        // 点球（无 VAR）
+  pensVAR = 0,          // 点球（含 VAR 复核）
+  subs = 0,             // 换人（人数）
+  minorInjuries = 0,    // 轻伤/短暂治疗（次）
+  seriousInjuries = 0,  // 严重伤情/担架/头部评估（次）
+  varOther = 0,         // 其他 VAR 介入（非进球/点球）
+  redsOrBrawls = 0,     // 红牌/群体冲突（次）
+  coolingBreaks = 0,    // 饮水暂停（次）
+  timeWastings = 0,     // 明显拖延被警告等（次）
+  extraSeconds = 0      // 设备/场地问题等自定义额外秒数
+} = {}) {
+  // 事件权重（秒）
+  const W = {
+    goal: 75,
+    varAfterGoal: 90,   // 进球后的 VAR 额外时间
+    pen: 120,
+    varForPen: 90,      // 点球的 VAR 额外时间
+    sub: 35,
+    minorInjury: 90,
+    seriousInjury: 240,
+    varOther: 120,
+    redOrBrawl: 90,
+    cooling: 180,
+    timeWasting: 45
+  };
+
+  // 累加总秒数（按事件发生时段的典型耗时）
+  const totalSeconds =
+      goalsNoVAR * W.goal +
+      goalsVAR    * (W.goal + W.varAfterGoal) +
+      pensNoVAR   * W.pen +
+      pensVAR     * (W.pen + W.varForPen) +
+      subs        * W.sub +
+      minorInjuries  * W.minorInjury +
+      seriousInjuries* W.seriousInjury +
+      varOther    * W.varOther +
+      redsOrBrawls* W.redOrBrawl +
+      coolingBreaks  * W.cooling +
+      timeWastings   * W.timeWasting +
+      Math.max(0, extraSeconds);
+
+  // 折算为"应加分钟"（>45s 进 1）
+  const minutesFromEvents =
+    Math.floor(totalSeconds / 60) + ((totalSeconds % 60) > 45 ? 1 : 0);
+
+  // 总补时 = 基础值 + 事件分钟
+  return Math.max(0, baseMin + minutesFromEvents);
 }
 
 // 提取比赛信息（优化版本）
@@ -852,6 +1021,7 @@ if (typeof module !== 'undefined' && module.exports) {
         parseStatsFromFullHtml,
         parseEventsFromFullHtml,
         parseEventContent,
-        extractMatchInfo
+        extractMatchInfo,
+        predictFirstHalfStoppage
     };
 }
