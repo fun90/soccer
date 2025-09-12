@@ -52,8 +52,8 @@
         // 确保所有必要的函数都已定义
         const requiredFunctions = [
             'parseLeagues', 'parseMatches', 'parseFullMatchData',
-            'switchTab', 'clearLeagueInput', 'clearMatchInput', 'clearStatsInput',
-            'copyMarkdown', 'updateCharCounter'
+            'switchTab', 'clearLeagueInput', 'clearMatchInput', 'clearStatsInput', 'clearJsonInput',
+            'copyMarkdown', 'updateCharCounter', 'parseJsonData', 'copyTable', 'downloadTable'
         ];
         
         const missingFunctions = requiredFunctions.filter(func => typeof window[func] === 'undefined');
@@ -190,45 +190,76 @@
         // 备用方案：监听textarea的input事件（处理各种输入方式）
         document.addEventListener('input', function(event) {
             const target = event.target;
-            if (target && target.tagName === 'TEXTAREA' && target.id.endsWith('-html')) {
+            const isJsonTextarea = target && target.tagName === 'TEXTAREA' && target.id === 'json-content';
+            const isHtmlTextarea = target && target.tagName === 'TEXTAREA' && target.id.endsWith('-html');
+            
+            if (isJsonTextarea || isHtmlTextarea) {
                 console.log('📝 检测到textarea内容变化:', target.id);
                 
                 // 防抖处理，避免频繁触发
                 clearTimeout(target.inputTimer);
                 target.inputTimer = setTimeout(() => {
-                    // 获取实际内容长度（考虑SmartContentManager）
-                    const type = target.id.replace('-html', '');
                     let contentLength = target.value.trim().length;
+                    let parseFunction = null;
+                    let type;
                     
-                    // 如果SmartContentManager接管了内容，从管理器获取
-                    if (contentLength === 0 && typeof window.getHtmlContent === 'function') {
-                        const actualContent = window.getHtmlContent(type);
-                        contentLength = actualContent ? actualContent.trim().length : 0;
-                        console.log('📋 Input事件 - 从SmartContentManager获取内容长度:', contentLength);
+                    if (isJsonTextarea) {
+                        // JSON解析处理
+                        type = 'json';
+                        console.log('📏 JSON Input事件 - 内容长度:', contentLength);
+                        
+                        // 更新字符计数器
+                        if (typeof window.updateCharCounter === 'function') {
+                            window.updateCharCounter('json');
+                        }
+                        
+                        // JSON数据自动解析阈值更低（50字符就可以）
+                        if (contentLength > 50) {
+                            const content = target.value.trim();
+                            // 简单检测是否可能是JSON
+                            if ((content.startsWith('{') && content.endsWith('}')) || 
+                                (content.startsWith('[') && content.endsWith(']'))) {
+                                parseFunction = 'parseJsonData';
+                                console.log('🔄 通过input事件触发JSON解析');
+                                showPasteHint('检测到JSON数据，正在自动解析...');
+                            }
+                        }
                     } else {
-                        console.log('📏 Input事件 - 直接获取内容长度:', contentLength);
+                        // HTML解析处理
+                        type = target.id.replace('-html', '');
+                        
+                        // 如果SmartContentManager接管了内容，从管理器获取
+                        if (contentLength === 0 && typeof window.getHtmlContent === 'function') {
+                            const actualContent = window.getHtmlContent(type);
+                            contentLength = actualContent ? actualContent.trim().length : 0;
+                            console.log('📋 Input事件 - 从SmartContentManager获取内容长度:', contentLength);
+                        } else {
+                            console.log('📏 Input事件 - 直接获取内容长度:', contentLength);
+                        }
+                        
+                        // 只有在内容较多时才自动触发（避免用户手动输入时误触发）
+                        if (contentLength > 500) {
+                            const textareaId = target.id;
+                            
+                            if (textareaId === 'league-html') {
+                                parseFunction = 'parseLeagues';
+                            } else if (textareaId === 'match-html') {
+                                parseFunction = 'parseMatches';
+                            } else if (textareaId === 'stats-html') {
+                                parseFunction = 'parseFullMatchData';
+                            }
+                            
+                            if (parseFunction) {
+                                console.log('🔄 通过input事件触发自动提取:', parseFunction);
+                                showPasteHint('检测到大量内容，正在自动提取...');
+                            }
+                        }
                     }
                     
-                    // 只有在内容较多时才自动触发（避免用户手动输入时误触发）
-                    if (contentLength > 500) {
-                        const textareaId = target.id;
-                        let parseFunction = null;
-                        
-                        if (textareaId === 'league-html') {
-                            parseFunction = 'parseLeagues';
-                        } else if (textareaId === 'match-html') {
-                            parseFunction = 'parseMatches';
-                        } else if (textareaId === 'stats-html') {
-                            parseFunction = 'parseFullMatchData';
-                        }
-                        
-                        if (parseFunction && typeof window[parseFunction] === 'function') {
-                            console.log('🔄 通过input事件触发自动提取:', parseFunction);
-                            showPasteHint('检测到大量内容，正在自动提取...');
-                            setTimeout(() => {
-                                window[parseFunction]();
-                            }, 500);
-                        }
+                    if (parseFunction && typeof window[parseFunction] === 'function') {
+                        setTimeout(() => {
+                            window[parseFunction]();
+                        }, 500);
                     }
                 }, 1000); // 1秒防抖
             }
@@ -289,6 +320,8 @@
                             targetTextarea = document.getElementById('match-html');
                         } else if (tabId === 'stats') {
                             targetTextarea = document.getElementById('stats-html');
+                        } else if (tabId === 'json') {
+                            targetTextarea = document.getElementById('json-content');
                         }
                         
                         if (targetTextarea && !targetTextarea.contains(event.target)) {
@@ -317,6 +350,9 @@
                     } else if (tabId === 'stats' && typeof window.clearStatsInput === 'function') {
                         window.clearStatsInput();
                         showPasteHint('已清空技术统计内容');
+                    } else if (tabId === 'json' && typeof window.clearJsonInput === 'function') {
+                        window.clearJsonInput();
+                        showPasteHint('已清空JSON数据内容');
                     }
                 }
             }

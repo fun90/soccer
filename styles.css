@@ -368,7 +368,6 @@ textarea {
     border-radius: 12px;
     padding: 20px;
     min-height: 200px;
-    white-space: pre-wrap;
     font-family: 'Courier New', monospace;
     font-size: 14px;
     line-height: 1.6;
@@ -412,6 +411,79 @@ textarea {
 @keyframes slideOut {
     from { transform: translateX(0); opacity: 1; }
     to { transform: translateX(100%); opacity: 0; }
+}
+
+/* JSON表格样式 */
+.json-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.json-table th,
+.json-table td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid #e1e5e9;
+    font-size: 13px;
+}
+
+.json-table th {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 12px;
+}
+
+.json-table tbody tr:hover {
+    background: #f8f9fa;
+}
+
+.json-table tbody tr:nth-child(even) {
+    background: #fafbfc;
+}
+
+.json-table tbody tr:nth-child(even):hover {
+    background: #f1f3f4;
+}
+
+/* 数值单元格样式 */
+.json-table .number {
+    text-align: right;
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+}
+
+.json-table .positive {
+    color: #28a745;
+}
+
+.json-table .negative {
+    color: #dc3545;
+}
+
+
+/* 响应式表格 */
+.table-container {
+    overflow-x: auto;
+    margin-top: 10px;
+}
+
+@media (max-width: 768px) {
+    .json-table {
+        font-size: 11px;
+    }
+    
+    .json-table th,
+    .json-table td {
+        padding: 8px 12px;
+    }
 }
 
 /* 响应式设计 */

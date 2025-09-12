@@ -34,26 +34,43 @@ function maybeMinimizeTextarea(type) {
 }
 
 function toggleTextarea(type) {
-    const textarea = document.getElementById(type + '-html');
-    const btn = document.getElementById(type + '-minimize-btn');
+    let textarea, btn;
     
-    if (textarea.classList.contains('textarea-minimized')) {
-        textarea.classList.remove('textarea-minimized');
-        btn.textContent = '折叠';
+    if (type === 'json') {
+        textarea = document.getElementById('json-content');
+        btn = document.getElementById('json-minimize-btn');
     } else {
-        textarea.classList.add('textarea-minimized');
-        btn.textContent = '展开';
+        textarea = document.getElementById(type + '-html');
+        btn = document.getElementById(type + '-minimize-btn');
+    }
+    
+    if (textarea && btn) {
+        if (textarea.classList.contains('textarea-minimized')) {
+            textarea.classList.remove('textarea-minimized');
+            btn.textContent = '折叠';
+        } else {
+            textarea.classList.add('textarea-minimized');
+            btn.textContent = '展开';
+        }
     }
 }
 
 // 字符计数器更新
 function updateCharCounter(type) {
     const counter = document.getElementById(type + '-char-counter');
+    if (!counter) return;
     
     // 兼容性获取smartManagers
     const managers = getSmartManagers();
     const smartLength = managers[type] ? managers[type].getContentLength() : 0;
-    const textarea = document.getElementById(type + '-html');
+    let textarea;
+    
+    if (type === 'json') {
+        textarea = document.getElementById('json-content');
+    } else {
+        textarea = document.getElementById(type + '-html');
+    }
+    
     const textareaLength = textarea ? textarea.value.length : 0;
     
     let totalLength = 0;
@@ -101,6 +118,12 @@ function clearStatsInput() {
     const managers = getSmartManagers();
     if (managers.stats) managers.stats.clearContent();
     updateCharCounter('stats');
+}
+
+function clearJsonInput() {
+    document.getElementById('json-content').value = '';
+    document.getElementById('json-output').innerHTML = '等待解析...';
+    updateCharCounter('json');
 }
 
 // 只清空输入内容，保留解析结果的清空函数
@@ -240,9 +263,247 @@ function showCopyError() {
     alert('复制失败，请手动选择内容复制');
 }
 
+// JSON解析函数
+function parseJsonData() {
+    const jsonContent = document.getElementById('json-content').value.trim();
+    const fieldsInput = document.getElementById('json-fields').value.trim();
+    const output = document.getElementById('json-output');
+    
+    if (!jsonContent) {
+        output.innerHTML = '<div class="error">请粘贴JSON数据</div>';
+        return;
+    }
+    
+    if (!fieldsInput) {
+        output.innerHTML = '<div class="error">请输入要提取的字段名</div>';
+        return;
+    }
+    
+    try {
+        // 解析JSON
+        const data = JSON.parse(jsonContent);
+        const fields = fieldsInput.split(',').map(f => f.trim()).filter(f => f);
+        
+        // 检查数据结构
+        let records = [];
+        if (data.model && Array.isArray(data.model)) {
+            records = data.model;
+        } else if (Array.isArray(data)) {
+            records = data;
+        } else {
+            records = [data];
+        }
+        
+        if (records.length === 0) {
+            output.innerHTML = '<div class="error">未找到数据记录</div>';
+            return;
+        }
+        
+        // 生成表格
+        const tableHtml = generateTable(records, fields);
+        output.innerHTML = tableHtml;
+        
+        // 存储解析结果到全局变量
+        setGlobalData('currentJsonData', records);
+        setGlobalData('currentJsonFields', fields);
+        
+        console.log(`✅ 成功解析JSON数据: ${records.length}条记录, ${fields.length}个字段`);
+        
+    } catch (error) {
+        console.error('JSON解析失败:', error);
+        output.innerHTML = `<div class="error">JSON格式错误: ${error.message}</div>`;
+    }
+}
+
+// 生成表格HTML
+function generateTable(records, fields) {
+    if (!records || records.length === 0) {
+        return '<div class="error">无数据记录</div>';
+    }
+    
+    // 表格头部
+    let tableHtml = `
+        <div class="table-container">
+            <table class="json-table">
+                <thead>
+                    <tr>
+    `;
+    
+    // 生成表头 - 添加日期列作为第一列
+    const fieldNames = {
+        'stockCode': '股票代码',
+        'stockName': '股票名称', 
+        'holdingShare': '持股数量',
+        'costPrice': '成本价',
+        'lastestMarketPrice': '最新价',
+        'marketCap': '市值',
+        'floatProfit': '浮动盈亏'
+    };
+    
+    // 首先添加日期列
+    tableHtml += `<th>日期</th>`;
+    
+    fields.forEach(field => {
+        const displayName = fieldNames[field] || field;
+        tableHtml += `<th>${displayName}</th>`;
+    });
+    
+    tableHtml += `
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    // 生成表格行 - 添加日期列作为第一列
+    const currentDate = new Date().toISOString().slice(0, 10); // yyyy-MM-dd格式
+    
+    records.forEach((record, index) => {
+        tableHtml += '<tr>';
+        
+        // 首先添加日期列
+        tableHtml += `<td>${currentDate}</td>`;
+        
+        fields.forEach(field => {
+            const value = record[field];
+            let cellContent = value !== null && value !== undefined ? value : '-';
+            let cellClass = '';
+            
+            // 数值格式化和样式
+            if (typeof value === 'number') {
+                cellClass = 'number';
+                if (field.includes('Price') || field.includes('Cap') || field.includes('Profit')) {
+                    if (value > 0) cellClass += ' positive';
+                    else if (value < 0) cellClass += ' negative';
+                    
+                    if (field === 'marketCap' && value > 1000) {
+                        cellContent = (value / 10000).toFixed(2) + '万';
+                    } else if (Math.abs(value) >= 1000) {
+                        cellContent = value.toLocaleString();
+                    } else {
+                        cellContent = value.toFixed(4);
+                    }
+                } else {
+                    cellContent = value.toLocaleString();
+                }
+            }
+            
+            tableHtml += `<td class="${cellClass}">${cellContent}</td>`;
+        });
+        tableHtml += '</tr>';
+    });
+    
+    tableHtml += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    return tableHtml;
+}
+
+// 复制表格数据
+function copyTable() {
+    const records = getGlobalData('currentJsonData');
+    const fields = getGlobalData('currentJsonFields');
+    
+    if (!records || !fields) {
+        alert('请先解析JSON数据');
+        return;
+    }
+    
+    // 生成制表符分隔的文本 - 不包含表头
+    let content = '';
+    
+    // 数据行 - 添加日期列作为第一列
+    const currentDate = new Date().toISOString().slice(0, 10); // yyyy-MM-dd格式
+    
+    records.forEach(record => {
+        const dataFields = fields.map(field => {
+            const value = record[field];
+            return value !== null && value !== undefined ? value : '';
+        });
+        const row = [currentDate, ...dataFields];
+        content += row.join('\t') + '\n';
+    });
+    
+    // 复制到剪贴板
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(content).then(() => {
+            showCopySuccess('表格数据');
+        }).catch(err => {
+            fallbackCopyTextToClipboard(content, '表格数据');
+        });
+    } else {
+        fallbackCopyTextToClipboard(content, '表格数据');
+    }
+}
+
+// 下载表格为CSV
+function downloadTable() {
+    const records = getGlobalData('currentJsonData');
+    const fields = getGlobalData('currentJsonFields');
+    
+    if (!records || !fields) {
+        alert('请先解析JSON数据');
+        return;
+    }
+    
+    // 生成CSV内容
+    let csvContent = '';
+    
+    // 表头 - 添加日期列作为第一列
+    const fieldNames = {
+        'stockCode': '股票代码',
+        'stockName': '股票名称', 
+        'holdingShare': '持股数量',
+        'costPrice': '成本价',
+        'lastestMarketPrice': '最新价',
+        'marketCap': '市值',
+        'floatProfit': '浮动盈亏'
+    };
+    
+    const headers = ['日期', ...fields.map(field => fieldNames[field] || field)];
+    csvContent += headers.join(',') + '\n';
+    
+    // 数据行 - 添加日期列作为第一列
+    const currentDate = new Date().toISOString().slice(0, 10); // yyyy-MM-dd格式
+    
+    records.forEach(record => {
+        const dataFields = fields.map(field => {
+            const value = record[field];
+            let cellValue = value !== null && value !== undefined ? value : '';
+            // 如果值包含逗号或换行符，需要用引号包围
+            if (typeof cellValue === 'string' && (cellValue.includes(',') || cellValue.includes('\n') || cellValue.includes('"'))) {
+                cellValue = '"' + cellValue.replace(/"/g, '""') + '"';
+            }
+            return cellValue;
+        });
+        const row = [currentDate, ...dataFields];
+        csvContent += row.join(',') + '\n';
+    });
+    
+    // 创建下载链接
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `json_data_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.style.display = 'none';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // 显示成功提示
+    showCopySuccess('CSV文件已下载');
+}
+
 // 将关键函数暴露到全局，确保跨模块访问
 window.updateCharCounter = updateCharCounter;
 window.clearInputOnly = clearInputOnly;
+window.parseJsonData = parseJsonData;
+window.clearJsonInput = clearJsonInput;
+window.copyTable = copyTable;
+window.downloadTable = downloadTable;
 
 // 导出UI函数（用于模块化）
 if (typeof module !== 'undefined' && module.exports) {
@@ -255,10 +516,15 @@ if (typeof module !== 'undefined' && module.exports) {
         clearLeagueInput,
         clearMatchInput,
         clearStatsInput,
+        clearJsonInput,
         copyMarkdown,
         fallbackCopyTextToClipboard,
         showCopySuccess,
         showCopyError,
-        clearInputOnly
+        clearInputOnly,
+        parseJsonData,
+        generateTable,
+        copyTable,
+        downloadTable
     };
 }
