@@ -6,6 +6,7 @@ let currentMatchData = '';
 let currentStatsData = '';
 let currentEventsData = '';
 let currentCombinedData = '';
+let currentTechStatsData = '';
 
 // 智能分片存储系统
 class SmartContentManager {
@@ -178,7 +179,7 @@ function initializeSmartTextareas() {
     console.log('开始初始化SmartContentManager...');
     
     // 确保DOM元素存在
-    const textareas = ['league', 'match', 'stats'];
+    const textareas = ['league', 'match', 'stats', 'tech-stats'];
     textareas.forEach(type => {
         const element = document.getElementById(type + '-html');
         if (element) {
@@ -191,6 +192,7 @@ function initializeSmartTextareas() {
     smartManagers.league = new SmartContentManager('league');
     smartManagers.match = new SmartContentManager('match');
     smartManagers.stats = new SmartContentManager('stats');
+    smartManagers['tech-stats'] = new SmartContentManager('tech-stats');
     
     console.log('SmartContentManager初始化完成');
 }
@@ -208,6 +210,7 @@ window.currentMatchData = currentMatchData;
 window.currentStatsData = currentStatsData;
 window.currentEventsData = currentEventsData;
 window.currentCombinedData = currentCombinedData;
+window.currentTechStatsData = currentTechStatsData;
 window.smartManagers = smartManagers;
 window.initializeSmartTextareas = initializeSmartTextareas;
 

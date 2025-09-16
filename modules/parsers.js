@@ -1005,12 +1005,365 @@ function extractMatchInfo(doc, contentHash = null) {
     return matchInfo;
 }
 
+// 解析技术统计数据（新增功能）
+function parseTechnicalStats() {
+    const htmlContent = getHtmlContent('tech-stats');
+    const outputDiv = document.getElementById('tech-stats-output');
+    
+    if (!htmlContent) {
+        showError('请先输入HTML内容', outputDiv);
+        return;
+    }
+    
+    PerformanceMonitor.start('parseTechnicalStats');
+    
+    try {
+        // 检查缓存
+        const contentHash = ParserCache._hash(htmlContent);
+        const cacheKey = `techStats_${contentHash}`;
+        
+        if (ParserCache.resultCache.has(cacheKey)) {
+            const cachedResult = ParserCache.resultCache.get(cacheKey);
+            showSuccess(`${cachedResult.message} (缓存)`, cachedResult.markdown, outputDiv);
+            setGlobalData('currentTechStatsData', cachedResult.markdown);
+            autoCopyAndClear(cachedResult.markdown, '技术统计', 'tech-stats');
+            PerformanceMonitor.end('parseTechnicalStats');
+            return;
+        }
+        
+        // 显示处理中状态
+        showProcessing('正在解析技术统计数据，请稍候...', outputDiv);
+        
+        // 使用setTimeout避免阻塞UI
+        setTimeout(() => {
+            try {
+                // 使用缓存的DOM解析
+                const doc = ParserCache.getParsedDoc(htmlContent);
+                
+                let markdown = '# 技术统计数据\n\n';
+                
+                // 查找技术统计容器
+                const techStatsContainer = doc.querySelector('.technical-statistics');
+                if (!techStatsContainer) {
+                    showError('未找到技术统计数据，请检查HTML格式', outputDiv);
+                    PerformanceMonitor.end('parseTechnicalStats');
+                    return;
+                }
+                
+                // 提取比赛信息
+                const matchInfo = extractMatchInfoFromStats(doc, contentHash);
+                if (matchInfo.homeTeam && matchInfo.awayTeam) {
+                    markdown += `### ${matchInfo.homeTeam} ${matchInfo.homeScore || '0'} - ${matchInfo.awayScore || '0'} ${matchInfo.awayTeam}\n\n`;
+                    
+                    if (matchInfo.matchTime) {
+                        markdown += `**开赛时间**: ${matchInfo.matchTime}\n\n`;
+                    }
+                    
+                    if (matchInfo.weather) {
+                        markdown += `**天气信息**: ${matchInfo.weather}\n\n`;
+                    }
+                }
+                
+                // 解析顶部数据 (角球、红黄牌、控球率)
+                const topData = parseTopStats(techStatsContainer);
+                if (topData.length > 0) {
+                    markdown += '## 主要统计\n\n';
+                    markdown += createMarkdownTable(['统计项目', '主队', '客队'], topData);
+                    markdown += '\n';
+                }
+                
+                // 解析底部数据 (进攻、射门等)
+                const bottomData = parseBottomStats(techStatsContainer);
+                if (bottomData.length > 0) {
+                    markdown += '## 详细统计\n\n';
+                    markdown += createMarkdownTable(['统计项目', '主队', '客队'], bottomData);
+                }
+                
+                // 解析事件数据
+                const eventData = parseEventData(doc);
+                if (eventData.length > 0) {
+                    markdown += '\n## 比赛事件\n\n';
+                    markdown += createMarkdownTable(['时间', '事件类型', '描述'], eventData);
+                }
+                
+                if (topData.length === 0 && bottomData.length === 0 && eventData.length === 0) {
+                    showError('未找到有效的技术统计或事件数据', outputDiv);
+                    PerformanceMonitor.end('parseTechnicalStats');
+                    return;
+                }
+                
+                const totalStats = topData.length + bottomData.length;
+                const eventCount = eventData.length;
+                const message = eventCount > 0 ? 
+                    `成功提取 ${totalStats} 项技术统计数据 + ${eventCount} 个比赛事件` : 
+                    `成功提取 ${totalStats} 项技术统计数据`;
+                
+                // 缓存结果
+                const result = { markdown, message, count: totalStats };
+                ParserCache.resultCache.set(cacheKey, result);
+                
+                setGlobalData('currentTechStatsData', markdown);
+                showSuccess(message, markdown, outputDiv);
+                
+                // 自动复制结果到剪贴板并清空输入内容
+                autoCopyAndClear(markdown, '技术统计', 'tech-stats');
+                
+                PerformanceMonitor.end('parseTechnicalStats');
+                
+            } catch (error) {
+                showError(`解析失败: ${error.message}`, outputDiv);
+                PerformanceMonitor.end('parseTechnicalStats');
+            }
+        }, 10);
+        
+    } catch (error) {
+        showError(`解析失败: ${error.message}`, outputDiv);
+        PerformanceMonitor.end('parseTechnicalStats');
+    }
+}
+
+// 从技术统计页面提取比赛信息
+function extractMatchInfoFromStats(doc, contentHash) {
+    const matchInfo = {
+        homeTeam: '',
+        awayTeam: '',
+        homeScore: '0',
+        awayScore: '0',
+        matchTime: '',
+        weather: ''
+    };
+    
+    // 查找比赛时间和天气信息
+    const topTitle = doc.querySelector('.top-title');
+    if (topTitle) {
+        // 提取开赛时间
+        const timeText = topTitle.textContent;
+        const timeMatch = timeText.match(/(\d{4}\/\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{2})/);
+        if (timeMatch) {
+            matchInfo.matchTime = timeMatch[1];
+        }
+        
+        // 提取天气信息
+        const weatherElements = topTitle.querySelectorAll('.item');
+        const weatherData = [];
+        
+        weatherElements.forEach(item => {
+            const textElement = item.querySelector('.text');
+            if (textElement) {
+                const value = textElement.textContent.trim();
+                if (item.classList.contains('weather')) {
+                    weatherData.push(`天气: ${value}`);
+                } else if (item.classList.contains('temperature')) {
+                    weatherData.push(`温度: ${value}`);
+                } else if (item.classList.contains('wind')) {
+                    weatherData.push(`风速: ${value}`);
+                } else if (item.classList.contains('humidity')) {
+                    weatherData.push(`湿度: ${value}`);
+                }
+            }
+        });
+        
+        if (weatherData.length > 0) {
+            matchInfo.weather = weatherData.join(', ');
+        }
+    }
+    
+    // 尝试从现有的extractMatchInfo函数获取队名和比分
+    const existingInfo = extractMatchInfo(doc, contentHash);
+    if (existingInfo.homeTeam) {
+        matchInfo.homeTeam = existingInfo.homeTeam;
+        matchInfo.awayTeam = existingInfo.awayTeam;
+        matchInfo.homeScore = existingInfo.homeScore;
+        matchInfo.awayScore = existingInfo.awayScore;
+    }
+    
+    return matchInfo;
+}
+
+// 解析顶部统计数据 (角球、红黄牌、控球率)
+function parseTopStats(container) {
+    const stats = [];
+    
+    // 解析左右两侧的数据
+    const leftSide = container.querySelector('.ts-t-left');
+    const rightSide = container.querySelector('.ts-t-right');
+    const center = container.querySelector('.ts-t-center');
+    
+    // 处理角球数据
+    if (leftSide && rightSide) {
+        const leftCorner = leftSide.querySelector('.corner .text');
+        const rightCorner = rightSide.querySelector('.corner .text');
+        if (leftCorner && rightCorner) {
+            stats.push(['角球', leftCorner.textContent.trim(), rightCorner.textContent.trim()]);
+        }
+        
+        // 处理红牌数据
+        const leftRed = leftSide.querySelector('.card-red .text');
+        const rightRed = rightSide.querySelector('.card-red .text');
+        if (leftRed && rightRed) {
+            stats.push(['红牌', leftRed.textContent.trim(), rightRed.textContent.trim()]);
+        }
+        
+        // 处理黄牌数据
+        const leftYellow = leftSide.querySelector('.card-yellow .text');
+        const rightYellow = rightSide.querySelector('.card-yellow .text');
+        if (leftYellow && rightYellow) {
+            stats.push(['黄牌', leftYellow.textContent.trim(), rightYellow.textContent.trim()]);
+        }
+    }
+    
+    // 处理控球率
+    if (center) {
+        const barPanel = center.querySelector('.bar-panel');
+        if (barPanel) {
+            const leftNum = barPanel.querySelector('.left .tnum');
+            const rightNum = barPanel.querySelector('.right .tnum');
+            const centerText = barPanel.querySelector('.barcenter');
+            
+            if (leftNum && rightNum && centerText) {
+                stats.push([
+                    centerText.textContent.trim(),
+                    leftNum.textContent.trim(),
+                    rightNum.textContent.trim()
+                ]);
+            }
+        }
+    }
+    
+    return stats;
+}
+
+// 解析底部统计数据 (进攻、射门等)
+function parseBottomStats(container) {
+    const stats = [];
+    
+    const bottomSection = container.querySelector('.ts-bottom');
+    if (!bottomSection) return stats;
+    
+    // 查找所有统计项目
+    const barPanels = bottomSection.querySelectorAll('.bar-panel');
+    
+    barPanels.forEach(panel => {
+        const leftNum = panel.querySelector('.left .tnum');
+        const rightNum = panel.querySelector('.right .tnum');
+        const centerText = panel.querySelector('.barcenter');
+        
+        if (leftNum && rightNum && centerText) {
+            const statName = centerText.textContent.trim();
+            const leftValue = leftNum.textContent.trim();
+            const rightValue = rightNum.textContent.trim();
+            
+            stats.push([statName, leftValue, rightValue]);
+        }
+    });
+    
+    return stats;
+}
+
+// 解析事件数据
+function parseEventData(doc) {
+    const events = [];
+    
+    // 查找事件列表容器
+    const eventList = doc.querySelector('.event-list');
+    if (!eventList) {
+        return events;
+    }
+    
+    // 获取所有事件项
+    const eventItems = eventList.querySelectorAll('li');
+    
+    eventItems.forEach(item => {
+        // 获取时间
+        const timeElement = item.querySelector('.time');
+        const time = timeElement ? timeElement.textContent.trim() : '';
+        
+        // 获取事件描述
+        const descElement = item.querySelector('.vs-content p');
+        const description = descElement ? descElement.textContent.trim() : '';
+        
+        if (description) {
+            // 确定事件类型
+            let eventType = '其他';
+            
+            // 检查图标类型
+            const iconElement = item.querySelector('.icon svg use');
+            if (iconElement) {
+                const iconHref = iconElement.getAttribute('xlink:href');
+                
+                if (iconHref) {
+                    if (iconHref.includes('jiaoqiu')) {
+                        eventType = '⚽ 角球';
+                    } else if (iconHref.includes('jinqiu')) {
+                        eventType = '⚽ 进球';
+                    } else if (iconHref.includes('dianqiu')) {
+                        eventType = '⚽ 点球';
+                    } else if (iconHref.includes('huangpai')) {
+                        eventType = '🟨 黄牌';
+                    } else if (iconHref.includes('hongpai')) {
+                        eventType = '🟥 红牌';
+                    } else if (iconHref.includes('huanren')) {
+                        eventType = '🔄 换人';
+                    } else if (iconHref.includes('wulongqiu')) {
+                        eventType = '⚽ 乌龙球';
+                    } else if (iconHref.includes('lianghuangyihong')) {
+                        eventType = '🟥 两黄变红';
+                    } else if (iconHref.includes('yuewei')) {
+                        eventType = '⚠️ 越位';
+                    } else if (iconHref.includes('renyiqiu')) {
+                        eventType = '⚽ 任意球';
+                    } else if (iconHref.includes('qiumenqiu')) {
+                        eventType = '⚽ 球门球';
+                    } else if (iconHref.includes('shangtingbushi')) {
+                        eventType = '⏱️ 伤停补时';
+                    } else if (iconHref.includes('jingong')) {
+                        eventType = '⚔️ 进攻';
+                    } else if (iconHref.includes('weixianjingong')) {
+                        eventType = '🔥 危险进攻';
+                    } else if (iconHref.includes('shijianbai')) {
+                        eventType = '📋 赛事信息';
+                    } else if (iconHref.includes('shaozibai')) {
+                        eventType = '🎯 比赛开始';
+                    }
+                }
+            }
+            
+            // 检查系统事件
+            if (item.classList.contains('system')) {
+                const htElement = item.querySelector('.ft');
+                if (htElement && htElement.textContent.trim() === 'HT') {
+                    eventType = '⏱️ 半场结束';
+                } else if (description.includes('比赛开始')) {
+                    eventType = '🎯 比赛开始';
+                    return;
+                } else if (description.includes('天气情况')) {
+                    eventType = '🌤️ 天气信息';
+                } else if (description.includes('场地情况')) {
+                    eventType = '🏟️ 场地信息';
+                } else {
+                    eventType = '📋 赛事信息';
+                    return;
+                }
+            }
+            
+            // 如果没有时间显示，使用空字符串
+            const displayTime = time || '-';
+            
+            events.push([displayTime, eventType, description]);
+        }
+    });
+    
+    // 按时间倒序排列（最新事件在上）
+    return events.reverse();
+}
+
 // 将解析函数暴露到全局，确保跨模块访问
 window.parseLeagues = parseLeagues;
 window.parseMatches = parseMatches;
 window.parseFullMatchData = parseFullMatchData;
 window.parseStatsFromFullHtml = parseStatsFromFullHtml;
 window.parseEventsFromFullHtml = parseEventsFromFullHtml;
+window.parseTechnicalStats = parseTechnicalStats;
 
 // 导出解析器函数（用于模块化）
 if (typeof module !== 'undefined' && module.exports) {
