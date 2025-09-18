@@ -1399,7 +1399,7 @@ function parseBottomStats(container) {
     return stats;
 }
 
-// 解析事件数据
+// 解析事件数据（增强版：识别进球队伍）
 function parseEventData(doc) {
     const events = [];
     
@@ -1409,6 +1409,11 @@ function parseEventData(doc) {
         return events;
     }
     
+    // 首先尝试从比赛信息中获取队名，用于识别进球队伍
+    const matchInfo = extractMatchInfo(doc);
+    const homeTeam = matchInfo.homeTeam || '';
+    const awayTeam = matchInfo.awayTeam || '';
+    
     // 获取所有事件项
     const eventItems = eventList.querySelectorAll('li');
     
@@ -1417,13 +1422,25 @@ function parseEventData(doc) {
         const timeElement = item.querySelector('.time');
         const time = timeElement ? timeElement.textContent.trim() : '';
         
-        // 获取事件描述
-        const descElement = item.querySelector('.vs-content p');
-        const description = descElement ? descElement.textContent.trim() : '';
+        // 获取事件描述 - 支持多个p标签
+        const descElements = item.querySelectorAll('.vs-content p');
+        let fullDescription = '';
+        let mainDescription = '';
         
-        if (description) {
-            // 确定事件类型
+        if (descElements.length > 0) {
+            // 主要描述通常是第一个p标签
+            mainDescription = descElements[0].textContent.trim();
+            
+            // 如果有多个p标签，组合所有描述
+            const allDescs = Array.from(descElements).map(p => p.textContent.trim()).filter(text => text);
+            fullDescription = allDescs.join(' | ');
+        }
+        
+        if (fullDescription) {
+            // 确定事件类型和相关队伍
             let eventType = '其他';
+            let involvedTeam = '';
+            let eventDetail = fullDescription;
             
             // 检查图标类型
             const iconElement = item.querySelector('.icon svg use');
@@ -1433,32 +1450,47 @@ function parseEventData(doc) {
                 if (iconHref) {
                     if (iconHref.includes('jiaoqiu')) {
                         eventType = '⚽ 角球';
+                        involvedTeam = extractTeamFromDescription(fullDescription, homeTeam, awayTeam);
                     } else if (iconHref.includes('jinqiu')) {
                         eventType = '⚽ 进球';
+                        involvedTeam = extractTeamFromDescription(fullDescription, homeTeam, awayTeam);
+                        // 对于进球事件，提取更详细的信息
+                        eventDetail = enhanceGoalDescription(fullDescription, involvedTeam);
                     } else if (iconHref.includes('dianqiu')) {
                         eventType = '⚽ 点球';
+                        involvedTeam = extractTeamFromDescription(fullDescription, homeTeam, awayTeam);
                     } else if (iconHref.includes('huangpai')) {
                         eventType = '🟨 黄牌';
+                        involvedTeam = extractTeamFromDescription(fullDescription, homeTeam, awayTeam);
                     } else if (iconHref.includes('hongpai')) {
                         eventType = '🟥 红牌';
+                        involvedTeam = extractTeamFromDescription(fullDescription, homeTeam, awayTeam);
                     } else if (iconHref.includes('huanren')) {
                         eventType = '🔄 换人';
+                        involvedTeam = extractTeamFromDescription(fullDescription, homeTeam, awayTeam);
                     } else if (iconHref.includes('wulongqiu')) {
                         eventType = '⚽ 乌龙球';
+                        involvedTeam = extractTeamFromDescription(fullDescription, homeTeam, awayTeam);
                     } else if (iconHref.includes('lianghuangyihong')) {
                         eventType = '🟥 两黄变红';
+                        involvedTeam = extractTeamFromDescription(fullDescription, homeTeam, awayTeam);
                     } else if (iconHref.includes('yuewei')) {
                         eventType = '⚠️ 越位';
+                        involvedTeam = extractTeamFromDescription(fullDescription, homeTeam, awayTeam);
                     } else if (iconHref.includes('renyiqiu')) {
                         eventType = '⚽ 任意球';
+                        involvedTeam = extractTeamFromDescription(fullDescription, homeTeam, awayTeam);
                     } else if (iconHref.includes('qiumenqiu')) {
                         eventType = '⚽ 球门球';
+                        involvedTeam = extractTeamFromDescription(fullDescription, homeTeam, awayTeam);
                     } else if (iconHref.includes('shangtingbushi')) {
                         eventType = '⏱️ 伤停补时';
                     } else if (iconHref.includes('jingong')) {
                         eventType = '⚔️ 进攻';
+                        involvedTeam = extractTeamFromDescription(fullDescription, homeTeam, awayTeam);
                     } else if (iconHref.includes('weixianjingong')) {
                         eventType = '🔥 危险进攻';
+                        involvedTeam = extractTeamFromDescription(fullDescription, homeTeam, awayTeam);
                     } else if (iconHref.includes('shijianbai')) {
                         eventType = '📋 赛事信息';
                     } else if (iconHref.includes('shaozibai')) {
@@ -1472,28 +1504,110 @@ function parseEventData(doc) {
                 const htElement = item.querySelector('.ft');
                 if (htElement && htElement.textContent.trim() === 'HT') {
                     eventType = '⏱️ 半场结束';
-                } else if (description.includes('比赛开始')) {
+                } else if (fullDescription.includes('比赛开始')) {
                     eventType = '🎯 比赛开始';
-                    return;
-                } else if (description.includes('天气情况')) {
+                } else if (fullDescription.includes('天气情况')) {
                     eventType = '🌤️ 天气信息';
-                } else if (description.includes('场地情况')) {
+                } else if (fullDescription.includes('场地情况')) {
                     eventType = '🏟️ 场地信息';
+                } else if (fullDescription.includes('欢迎收看')) {
+                    eventType = '📺 直播开始';
                 } else {
                     eventType = '📋 赛事信息';
-                    return;
                 }
             }
             
             // 如果没有时间显示，使用空字符串
             const displayTime = time || '-';
             
-            events.push([displayTime, eventType, description]);
+            // 构建最终的事件描述
+            let finalDescription = eventDetail;
+            if (involvedTeam && !eventDetail.includes(involvedTeam)) {
+                finalDescription = `${involvedTeam} - ${eventDetail}`;
+            }
+            
+            events.push([displayTime, eventType, finalDescription]);
         }
     });
     
     // 按时间倒序排列（最新事件在上）
     return events.reverse();
+}
+
+// 从事件描述中提取相关队伍
+function extractTeamFromDescription(description, homeTeam, awayTeam) {
+    // 移除HTML标签
+    const cleanDesc = description.replace(/<[^>]*>/g, '');
+    
+    // 检查是否包含已知的队名
+    if (homeTeam && cleanDesc.includes(homeTeam)) {
+        return homeTeam;
+    }
+    if (awayTeam && cleanDesc.includes(awayTeam)) {
+        return awayTeam;
+    }
+    
+    // 使用正则表达式匹配括号内的队名，如 "(第比利斯2025)"
+    const teamInParentheses = cleanDesc.match(/\(([^)]+)\)/);
+    if (teamInParentheses) {
+        return teamInParentheses[1];
+    }
+    
+    // 尝试匹配其他常见格式
+    // 匹配"队名获得"、"队名取得"等格式
+    const teamGetMatch = cleanDesc.match(/([^，。！]+?)(?:获得|取得|赢得)/);
+    if (teamGetMatch) {
+        const teamName = teamGetMatch[1].trim();
+        if (teamName.length > 1 && teamName.length < 20) { // 合理的队名长度
+            return teamName;
+        }
+    }
+    
+    // 匹配队名在句子开头的情况
+    const teamStartMatch = cleanDesc.match(/^([^，。！\s]+)/);
+    if (teamStartMatch) {
+        const potentialTeam = teamStartMatch[1].trim();
+        // 检查是否是合理的队名（不是数字、时间等）
+        if (potentialTeam.length > 2 && !potentialTeam.match(/^\d+$/) && !potentialTeam.includes('第') && !potentialTeam.includes('分钟')) {
+            return potentialTeam;
+        }
+    }
+    
+    return '';
+}
+
+// 增强进球事件描述
+function enhanceGoalDescription(description, team) {
+    const cleanDesc = description.replace(/<[^>]*>/g, '');
+    
+    // 检查是否是第几个进球
+    const goalNumberMatch = cleanDesc.match(/第(\d+)个进球/);
+    let goalInfo = '';
+    
+    if (goalNumberMatch) {
+        goalInfo = `第${goalNumberMatch[1]}球`;
+    }
+    
+    // 检查是否取得领先
+    let leadInfo = '';
+    if (cleanDesc.includes('取得') && (cleanDesc.includes('领先') || cleanDesc.includes('优势'))) {
+        leadInfo = '(取得领先)';
+    } else if (cleanDesc.includes('扳平') || cleanDesc.includes('追平')) {
+        leadInfo = '(扳平比分)';
+    }
+    
+    // 组合信息
+    let result = cleanDesc;
+    if (team && goalInfo) {
+        result = `${team} ${goalInfo}`;
+        if (leadInfo) {
+            result += ` ${leadInfo}`;
+        }
+    } else if (team) {
+        result = `${team} - ${cleanDesc}`;
+    }
+    
+    return result;
 }
 
 // 将解析函数暴露到全局，确保跨模块访问
