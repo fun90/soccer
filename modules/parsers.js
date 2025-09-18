@@ -414,11 +414,16 @@ function parseStatsFromFullHtml(htmlContent, contentHash = null) {
         // 提取比赛信息
         const matchInfo = extractMatchInfo(doc, hash);
         if (matchInfo.homeTeam && matchInfo.awayTeam) {
+            // 主标题：球队对阵和比分
             markdown += `### ${matchInfo.homeTeam} ${matchInfo.homeScore} - ${matchInfo.awayScore} ${matchInfo.awayTeam}\n\n`;
             
-            // 基本信息
+            // 基本信息行
             const basicInfo = [];
-            if (matchInfo.league) basicInfo.push(`**联赛**: ${matchInfo.league}`);
+            if (matchInfo.league) {
+                let leagueText = `**联赛**: ${matchInfo.league}`;
+                if (matchInfo.round) leagueText += ` ${matchInfo.round}`;
+                basicInfo.push(leagueText);
+            }
             if (matchInfo.matchTime) basicInfo.push(`**时间**: ${matchInfo.matchTime}`);
             if (matchInfo.venue) basicInfo.push(`**场地**: ${matchInfo.venue}`);
             
@@ -426,9 +431,19 @@ function parseStatsFromFullHtml(htmlContent, contentHash = null) {
                 markdown += basicInfo.join(' | ') + '\n\n';
             }
             
-            // 状态信息
+            // 排名信息行（如果有排名数据）
+            const rankInfo = [];
+            if (matchInfo.homeRank) rankInfo.push(`**${matchInfo.homeTeam}**: ${matchInfo.homeRank}`);
+            if (matchInfo.awayRank) rankInfo.push(`**${matchInfo.awayTeam}**: ${matchInfo.awayRank}`);
+            
+            if (rankInfo.length > 0) {
+                markdown += rankInfo.join(' | ') + '\n\n';
+            }
+            
+            // 状态信息行
             const statusInfo = [];
             if (matchInfo.currentTime) statusInfo.push(`**比赛进行**: ${matchInfo.currentTime}`);
+            if (matchInfo.halfTimeScore) statusInfo.push(`**半场**: ${matchInfo.halfTimeScore}`);
             if (matchInfo.weather) statusInfo.push(`**天气**: ${matchInfo.weather}`);
             if (matchInfo.temperature) statusInfo.push(`**温度**: ${matchInfo.temperature}`);
             
@@ -903,7 +918,7 @@ function predictFirstHalfStoppage({
   return Math.max(0, baseMin + minutesFromEvents);
 }
 
-// 提取比赛信息（优化版本）
+// 提取比赛信息（优化版本，支持多种HTML结构）
 function extractMatchInfo(doc, contentHash = null) {
     // 如果有contentHash，尝试从缓存获取
     if (contentHash) {
@@ -923,10 +938,28 @@ function extractMatchInfo(doc, contentHash = null) {
         venue: '',
         currentTime: '',
         weather: '',
-        temperature: ''
+        temperature: '',
+        round: '',
+        homeRank: '',
+        awayRank: '',
+        halfTimeScore: ''
     };
     
-    // 使用缓存查询（如果有contentHash）
+    // 方法1：尝试从新格式 .layoutScreen.team-info 解析
+    let teamInfo;
+    if (contentHash) {
+        const teamInfoResults = ParserCache.getQueryResult(doc, '.layoutScreen.team-info', contentHash);
+        teamInfo = teamInfoResults[0];
+    } else {
+        teamInfo = doc.querySelector('.layoutScreen.team-info');
+    }
+    
+    if (teamInfo) {
+        // 解析新格式的比赛信息
+        return extractFromNewFormat(teamInfo, matchInfo, contentHash);
+    }
+    
+    // 方法2：尝试从传统格式 .analyhead 解析
     let analyHead;
     if (contentHash) {
         const analyHeadResults = ParserCache.getQueryResult(doc, '.analyhead', contentHash);
@@ -935,10 +968,122 @@ function extractMatchInfo(doc, contentHash = null) {
         analyHead = doc.querySelector('.analyhead');
     }
     
-    if (!analyHead) {
-        return matchInfo;
+    if (analyHead) {
+        return extractFromTraditionalFormat(analyHead, matchInfo, contentHash);
     }
     
+    // 缓存结果（如果有contentHash）
+    if (contentHash) {
+        const cacheKey = `matchInfo_${contentHash}`;
+        ParserCache.resultCache.set(cacheKey, matchInfo);
+    }
+    
+    return matchInfo;
+}
+
+// 从新格式 .layoutScreen.team-info 解析比赛信息
+function extractFromNewFormat(teamInfo, matchInfo, contentHash = null) {
+    // 解析主队信息
+    const homeTeam = teamInfo.querySelector('.team-home');
+    if (homeTeam) {
+        // 主队名称 - 改进选择器，从img元素的alt属性获取更准确的队名
+        const homeImg = homeTeam.querySelector('.team-icon img');
+        if (homeImg && homeImg.alt) {
+            matchInfo.homeTeam = homeImg.alt.trim();
+        } else {
+            // 备选方案：从链接文本获取
+            const homeNameSpan = homeTeam.querySelector('.name a span:not(.pm)');
+            if (homeNameSpan) {
+                matchInfo.homeTeam = homeNameSpan.textContent.trim();
+            }
+        }
+        
+        // 主队排名信息
+        const homeRank = homeTeam.querySelector('.name a .pm');
+        if (homeRank) {
+            matchInfo.homeRank = homeRank.textContent.trim();
+        }
+    }
+    
+    // 解析客队信息
+    const awayTeam = teamInfo.querySelector('.team-away');
+    if (awayTeam) {
+        // 客队名称 - 同样从img元素的alt属性获取
+        const awayImg = awayTeam.querySelector('.team-icon img');
+        if (awayImg && awayImg.alt) {
+            matchInfo.awayTeam = awayImg.alt.trim();
+        } else {
+            // 备选方案：从链接文本获取
+            const awayNameSpan = awayTeam.querySelector('.name a span:not(.pm)');
+            if (awayNameSpan) {
+                matchInfo.awayTeam = awayNameSpan.textContent.trim();
+            }
+        }
+        
+        // 客队排名信息
+        const awayRank = awayTeam.querySelector('.name a .pm');
+        if (awayRank) {
+            matchInfo.awayRank = awayRank.textContent.trim();
+        }
+    }
+    
+    // 解析中央区域信息（联赛、时间等）
+    const teamCenter = teamInfo.querySelector('.team-center');
+    if (teamCenter) {
+        // 联赛信息和轮次
+        const leagueLink = teamCenter.querySelector('.time h1 a');
+        if (leagueLink) {
+            const leagueText = leagueLink.textContent.trim();
+            // 格式: "埃及超 联赛 第7轮"
+            const parts = leagueText.split(' ');
+            if (parts.length >= 1) {
+                matchInfo.league = parts[0]; // 埃及超
+            }
+            if (leagueText.includes('第') && leagueText.includes('轮')) {
+                const roundMatch = leagueText.match(/第(\d+)轮/);
+                if (roundMatch) {
+                    matchInfo.round = `第${roundMatch[1]}轮`;
+                }
+            }
+        }
+        
+        // 比赛时间
+        const timeElement = teamCenter.querySelector('.time a:not(h1 a)');
+        if (timeElement) {
+            matchInfo.matchTime = timeElement.textContent.trim();
+        }
+        
+        // 半场比分
+        const halfScorePanel = teamCenter.querySelector('.half-score-panel');
+        if (halfScorePanel && halfScorePanel.style.display !== 'none') {
+            const halfScore = halfScorePanel.querySelector('.half-score');
+            if (halfScore) {
+                matchInfo.halfTimeScore = halfScore.textContent.trim();
+            }
+        }
+    }
+    
+    // 尝试从其他地方获取当前比分（如果有的话）
+    // 由于canvas元素可能包含动态渲染的比分，先尝试从周围文本获取
+    const allText = teamInfo.textContent;
+    const scorePattern = /(\d+)\s*-\s*(\d+)/;
+    const scoreMatch = allText.match(scorePattern);
+    if (scoreMatch) {
+        matchInfo.homeScore = scoreMatch[1];
+        matchInfo.awayScore = scoreMatch[2];
+    }
+    
+    // 缓存结果
+    if (contentHash) {
+        const cacheKey = `matchInfo_${contentHash}`;
+        ParserCache.resultCache.set(cacheKey, matchInfo);
+    }
+    
+    return matchInfo;
+}
+
+// 从传统格式 .analyhead 解析比赛信息
+function extractFromTraditionalFormat(analyHead, matchInfo, contentHash = null) {
     // 优化：批量查询所有需要的元素
     const homeLink = analyHead.querySelector('.home a');
     const guestLink = analyHead.querySelector('.guest a');
@@ -994,12 +1139,6 @@ function extractMatchInfo(doc, contentHash = null) {
                 matchInfo.temperature = labelText.replace('温度：', '').trim();
             }
         }
-    }
-    
-    // 缓存结果（如果有contentHash）
-    if (contentHash) {
-        const cacheKey = `matchInfo_${contentHash}`;
-        ParserCache.resultCache.set(cacheKey, matchInfo);
     }
     
     return matchInfo;
@@ -1364,6 +1503,9 @@ window.parseFullMatchData = parseFullMatchData;
 window.parseStatsFromFullHtml = parseStatsFromFullHtml;
 window.parseEventsFromFullHtml = parseEventsFromFullHtml;
 window.parseTechnicalStats = parseTechnicalStats;
+window.extractMatchInfo = extractMatchInfo;
+window.extractFromNewFormat = extractFromNewFormat;
+window.extractFromTraditionalFormat = extractFromTraditionalFormat;
 
 // 导出解析器函数（用于模块化）
 if (typeof module !== 'undefined' && module.exports) {
@@ -1375,6 +1517,9 @@ if (typeof module !== 'undefined' && module.exports) {
         parseEventsFromFullHtml,
         parseEventContent,
         extractMatchInfo,
+        extractFromNewFormat,
+        extractFromTraditionalFormat,
+        parseTechnicalStats,
         predictFirstHalfStoppage
     };
 }
