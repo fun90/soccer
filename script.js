@@ -51,8 +51,8 @@
         
         // 确保所有必要的函数都已定义
         const requiredFunctions = [
-            'parseLeagues', 'parseMatches', 'parseFullMatchData', 'parseTechnicalStats',
-            'switchTab', 'clearLeagueInput', 'clearMatchInput', 'clearStatsInput', 'clearTechStatsInput', 'clearJsonInput',
+            'parseLeagues', 'parseMatches', 'parseMatchInfo', 'parseFullMatchData', 'parseTechnicalStats',
+            'switchTab', 'clearLeagueInput', 'clearMatchInput', 'clearMatchInfoInput', 'clearStatsInput', 'clearTechStatsInput', 'clearJsonInput',
             'copyMarkdown', 'updateCharCounter', 'parseJsonData', 'copyTable', 'downloadTable'
         ];
         
@@ -249,6 +249,8 @@
                                 parseFunction = 'parseFullMatchData';
                             } else if (textareaId === 'tech-stats-html') {
                                 parseFunction = 'parseTechnicalStats';
+                            } else if (textareaId === 'match-info-html') {
+                                parseFunction = 'parseMatchInfo';
                             }
                             
                             if (parseFunction) {
@@ -282,6 +284,8 @@
                 parseFunction = 'parseFullMatchData';
             } else if (type === 'tech-stats') {
                 parseFunction = 'parseTechnicalStats';
+            } else if (type === 'match-info') {
+                parseFunction = 'parseMatchInfo';
             }
             
             if (parseFunction && contentLength > 50) {
@@ -326,6 +330,8 @@
                             targetTextarea = document.getElementById('stats-html');
                         } else if (tabId === 'tech-stats') {
                             targetTextarea = document.getElementById('tech-stats-html');
+                        } else if (tabId === 'match-info') {
+                            targetTextarea = document.getElementById('match-info-html');
                         } else if (tabId === 'json') {
                             targetTextarea = document.getElementById('json-content');
                         }
@@ -359,6 +365,9 @@
                     } else if (tabId === 'tech-stats' && typeof window.clearTechStatsInput === 'function') {
                         window.clearTechStatsInput();
                         showPasteHint('已清空实时技术统计内容');
+                    } else if (tabId === 'match-info' && typeof window.clearMatchInfoInput === 'function') {
+                        window.clearMatchInfoInput();
+                        showPasteHint('已清空比赛信息内容');
                     } else if (tabId === 'json' && typeof window.clearJsonInput === 'function') {
                         window.clearJsonInput();
                         showPasteHint('已清空JSON数据内容');
@@ -539,6 +548,10 @@
             {
                 id: 'tech-stats-html',
                 text: `直接粘贴(${shortcuts.paste})完整的比赛页面的HTML代码，将自动提取并复制结果...`
+            },
+            {
+                id: 'match-info-html',
+                text: `直接粘贴(${shortcuts.paste})包含.layoutScreen.team-info的HTML代码，将自动提取比赛信息...`
             }
         ];
         

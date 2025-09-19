@@ -128,6 +128,14 @@ function clearTechStatsInput() {
     updateCharCounter('tech-stats');
 }
 
+function clearMatchInfoInput() {
+    document.getElementById('match-info-html').value = '';
+    document.getElementById('match-info-output').innerHTML = '等待提取...';
+    const managers = getSmartManagers();
+    if (managers['match-info']) managers['match-info'].clearContent();
+    updateCharCounter('match-info');
+}
+
 function clearJsonInput() {
     document.getElementById('json-content').value = '';
     document.getElementById('json-output').innerHTML = '等待解析...';
@@ -166,7 +174,8 @@ function copyMarkdown(type) {
         'stats': { varName: 'currentStatsData', typeName: '技术统计' },
         'events': { varName: 'currentEventsData', typeName: '详细事件' },
         'combined': { varName: 'currentCombinedData', typeName: '比赛数据' },
-        'tech-stats': { varName: 'currentTechStatsData', typeName: '技术统计' }
+        'tech-stats': { varName: 'currentTechStatsData', typeName: '技术统计' },
+        'match-info': { varName: 'currentMatchInfoData', typeName: '比赛信息' }
     };
     
     const data = dataMap[type];
@@ -512,6 +521,7 @@ window.clearInputOnly = clearInputOnly;
 window.parseJsonData = parseJsonData;
 window.clearJsonInput = clearJsonInput;
 window.clearTechStatsInput = clearTechStatsInput;
+window.clearMatchInfoInput = clearMatchInfoInput;
 window.copyTable = copyTable;
 window.downloadTable = downloadTable;
 
@@ -526,6 +536,8 @@ if (typeof module !== 'undefined' && module.exports) {
         clearLeagueInput,
         clearMatchInput,
         clearStatsInput,
+        clearTechStatsInput,
+        clearMatchInfoInput,
         clearJsonInput,
         copyMarkdown,
         fallbackCopyTextToClipboard,

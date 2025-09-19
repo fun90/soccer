@@ -1610,6 +1610,176 @@ function enhanceGoalDescription(description, team) {
     return result;
 }
 
+// 解析比赛信息（新增功能）
+function parseMatchInfo() {
+    const htmlContent = getHtmlContent('match-info');
+    const outputDiv = document.getElementById('match-info-output');
+
+    if (!htmlContent) {
+        showError('请先输入HTML内容', outputDiv);
+        return;
+    }
+
+    PerformanceMonitor.start('parseMatchInfo');
+
+    try {
+        // 检查缓存
+        const contentHash = ParserCache._hash(htmlContent);
+        const cacheKey = `matchInfo_${contentHash}`;
+
+        if (ParserCache.resultCache.has(cacheKey)) {
+            const cachedResult = ParserCache.resultCache.get(cacheKey);
+            showSuccess(`${cachedResult.message} (缓存)`, cachedResult.markdown, outputDiv);
+            setGlobalData('currentMatchInfoData', cachedResult.markdown);
+            autoCopyAndClear(cachedResult.markdown, '比赛信息', 'match-info');
+            PerformanceMonitor.end('parseMatchInfo');
+            return;
+        }
+
+        // 显示处理中状态
+        showProcessing('正在解析比赛信息，请稍候...', outputDiv);
+
+        // 使用setTimeout避免阻塞UI
+        setTimeout(() => {
+            try {
+                // 使用缓存的DOM解析
+                const doc = ParserCache.getParsedDoc(htmlContent);
+
+                // 查找比赛信息容器
+                const teamInfoContainer = doc.querySelector('.layoutScreen.team-info');
+                if (!teamInfoContainer) {
+                    showError('未找到比赛信息数据，请检查HTML格式（需要包含.layoutScreen.team-info）', outputDiv);
+                    PerformanceMonitor.end('parseMatchInfo');
+                    return;
+                }
+
+                // 使用现有的extractFromNewFormat函数解析
+                const matchInfo = extractFromNewFormat(teamInfoContainer, {
+                    homeTeam: '',
+                    awayTeam: '',
+                    homeScore: '0',
+                    awayScore: '0',
+                    league: '',
+                    matchTime: '',
+                    venue: '',
+                    currentTime: '',
+                    weather: '',
+                    temperature: '',
+                    round: '',
+                    homeRank: '',
+                    awayRank: '',
+                    halfTimeScore: ''
+                }, contentHash);
+
+                if (!matchInfo.homeTeam || !matchInfo.awayTeam) {
+                    showError('无法提取比赛队伍信息，请检查HTML格式', outputDiv);
+                    PerformanceMonitor.end('parseMatchInfo');
+                    return;
+                }
+
+                // 生成Markdown格式输出
+                let markdown = generateMatchInfoMarkdown(matchInfo);
+
+                const message = `成功提取比赛信息：${matchInfo.homeTeam} vs ${matchInfo.awayTeam}`;
+
+                // 缓存结果
+                const result = { markdown, message, matchInfo };
+                ParserCache.resultCache.set(cacheKey, result);
+
+                setGlobalData('currentMatchInfoData', markdown);
+                showSuccess(message, markdown, outputDiv);
+
+                // 自动复制结果到剪贴板并清空输入内容
+                autoCopyAndClear(markdown, '比赛信息', 'match-info');
+
+                PerformanceMonitor.end('parseMatchInfo');
+
+            } catch (error) {
+                showError(`解析失败: ${error.message}`, outputDiv);
+                PerformanceMonitor.end('parseMatchInfo');
+            }
+        }, 10);
+
+    } catch (error) {
+        showError(`解析失败: ${error.message}`, outputDiv);
+        PerformanceMonitor.end('parseMatchInfo');
+    }
+}
+
+// 生成比赛信息的Markdown格式
+function generateMatchInfoMarkdown(matchInfo) {
+    let markdown = '# 比赛信息\n\n';
+
+    // 主要对阵信息
+    markdown += `## ${matchInfo.homeTeam} vs ${matchInfo.awayTeam}\n\n`;
+
+    // 基本信息表格
+    const basicInfo = [];
+
+    if (matchInfo.league) {
+        let leagueText = matchInfo.league;
+        if (matchInfo.round) leagueText += ` ${matchInfo.round}`;
+        basicInfo.push(['联赛', leagueText]);
+    }
+
+    if (matchInfo.matchTime) {
+        basicInfo.push(['比赛时间', matchInfo.matchTime]);
+    }
+
+    if (matchInfo.venue) {
+        basicInfo.push(['比赛场地', matchInfo.venue]);
+    }
+
+    if (matchInfo.currentTime) {
+        basicInfo.push(['比赛状态', matchInfo.currentTime]);
+    }
+
+    if (matchInfo.halfTimeScore) {
+        basicInfo.push(['半场比分', matchInfo.halfTimeScore]);
+    }
+
+    if (matchInfo.weather) {
+        basicInfo.push(['天气', matchInfo.weather]);
+    }
+
+    if (matchInfo.temperature) {
+        basicInfo.push(['温度', matchInfo.temperature]);
+    }
+
+    if (basicInfo.length > 0) {
+        markdown += createMarkdownTable(['项目', '信息'], basicInfo);
+        markdown += '\n';
+    }
+
+    // 队伍详细信息
+    markdown += '## 队伍信息\n\n';
+
+    const teamInfo = [];
+
+    // 主队信息
+    let homeTeamInfo = matchInfo.homeTeam;
+    if (matchInfo.homeRank) {
+        homeTeamInfo += ` ${matchInfo.homeRank}`;
+    }
+    teamInfo.push(['主队', homeTeamInfo]);
+
+    // 客队信息
+    let awayTeamInfo = matchInfo.awayTeam;
+    if (matchInfo.awayRank) {
+        awayTeamInfo += ` ${matchInfo.awayRank}`;
+    }
+    teamInfo.push(['客队', awayTeamInfo]);
+
+    // 当前比分（如果有）
+    if (matchInfo.homeScore !== '0' || matchInfo.awayScore !== '0') {
+        teamInfo.push(['当前比分', `${matchInfo.homeScore} - ${matchInfo.awayScore}`]);
+    }
+
+    markdown += createMarkdownTable(['队伍', '详情'], teamInfo);
+
+    return markdown;
+}
+
 // 将解析函数暴露到全局，确保跨模块访问
 window.parseLeagues = parseLeagues;
 window.parseMatches = parseMatches;
@@ -1617,6 +1787,7 @@ window.parseFullMatchData = parseFullMatchData;
 window.parseStatsFromFullHtml = parseStatsFromFullHtml;
 window.parseEventsFromFullHtml = parseEventsFromFullHtml;
 window.parseTechnicalStats = parseTechnicalStats;
+window.parseMatchInfo = parseMatchInfo;
 window.extractMatchInfo = extractMatchInfo;
 window.extractFromNewFormat = extractFromNewFormat;
 window.extractFromTraditionalFormat = extractFromTraditionalFormat;
@@ -1630,6 +1801,8 @@ if (typeof module !== 'undefined' && module.exports) {
         parseStatsFromFullHtml,
         parseEventsFromFullHtml,
         parseEventContent,
+        parseMatchInfo,
+        generateMatchInfoMarkdown,
         extractMatchInfo,
         extractFromNewFormat,
         extractFromTraditionalFormat,

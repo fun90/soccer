@@ -3,6 +3,7 @@
 // 全局变量存储解析结果
 let currentLeagueData = '';
 let currentMatchData = '';
+let currentMatchInfoData = '';
 let currentStatsData = '';
 let currentEventsData = '';
 let currentCombinedData = '';
@@ -179,7 +180,7 @@ function initializeSmartTextareas() {
     console.log('开始初始化SmartContentManager...');
     
     // 确保DOM元素存在
-    const textareas = ['league', 'match', 'stats', 'tech-stats'];
+    const textareas = ['league', 'match', 'match-info', 'stats', 'tech-stats'];
     textareas.forEach(type => {
         const element = document.getElementById(type + '-html');
         if (element) {
@@ -188,9 +189,10 @@ function initializeSmartTextareas() {
             console.error(`未找到textarea元素: ${type}-html`);
         }
     });
-    
+
     smartManagers.league = new SmartContentManager('league');
     smartManagers.match = new SmartContentManager('match');
+    smartManagers['match-info'] = new SmartContentManager('match-info');
     smartManagers.stats = new SmartContentManager('stats');
     smartManagers['tech-stats'] = new SmartContentManager('tech-stats');
     
